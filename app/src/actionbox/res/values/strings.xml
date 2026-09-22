@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Action box</string>
+    <string name="a11y_label">Action box</string>
+    <string name="a11y_description">Action box uses accessibility to tap Call or Send in other apps when you run a command.</string>
+</resources>

@@ -1,0 +1,56 @@
+﻿# Build
+.gradle/
+.kotlin/
+build/
+app/build/
+**/build/
+*.apk
+!releases/*.apk
+versions/*.apk
+*.aab
+*.ap_
+local.properties
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+*~
+
+# Secrets / signing
+*.jks
+*.keystore
+!keystore/debug.keystore
+**/keystore.properties
+**/google-services.json
+**/secrets.*
+.env
+.env.*
+
+# Generated at build from Lang/ (except English master)
+app/src/main/assets/lang/*.json
+
+# Runtime GitHub token fallback (never commit)
+app/src/main/assets/repo_token.txt
+app/src/main/assets/compat_drive_upload_url.txt
+Lang/download-ids.json
+Lang/README-Drive.txt
+
+# Captures / large artifacts
+dist/
+apk/
+captures/
+*.log
+.DS_Store
+Thumbs.db
+
+# Cursor local (keep skills/rules tracked)
+.cursor/projects/
+
+# GitHub rejects files >= 100MB. jadx zip/jar live in tools/jadx.7z.001 + .002
+# Restore: 7z x tools/jadx.7z.001 -otools/jadx
+tools/jadx.zip
+tools/jadx/
+tools/sm-src/
+tools/__pycache__/

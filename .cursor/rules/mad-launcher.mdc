@@ -1,0 +1,41 @@
+---
+description: MAD/Madl launcher project conventions — versioning, devices, notifs, QS, nav, ship
+alwaysApply: true
+---
+
+# MAD Launcher
+
+Work in `S:/projects/MadLauncher` (`com.madlauncher`). User: Mike. **Do not commit unless asked.**
+
+## Devices / ship
+
+- Phone: `855db4bc` (primary). Tablet: `R9WNB0PHKVJ`. Note 7 MAD OS: `d191ccfb` (no Accessibility requirement).
+- Patch: bump fourth version segment + `versionCode`, `assembleDebug`, `adb install -r`, relaunch.
+- Adb flaky → `kill-server` / `start-server` before assuming device gone.
+
+## Versioning
+
+- Feature (post-0.9.15 style): +0.0.05 when appropriate.
+- Fixes: fourth segment (e.g. `0.9.30.19`).
+
+## Notifications
+
+- `@` apps (messaging + email) stay in the **shade**; Notifications window = that package set only.
+- Badges = **active** + `canShowBadge` only — never snooze ghosts.
+- Shade ↔ MAD dismiss/mark-read must share the same notification key.
+- Opening messaging/email clears that package’s unread.
+
+## Quick Settings
+
+- Stock tiles: use `QsTileActions` (Sound cycles ringer; cell = mobile data).
+- Never map cell tap to Wi‑Fi / `ACTION_INTERNET_CONNECTIVITY`.
+- Don’t open Sound Settings for a Sound/Mute profile tap.
+
+## Nav shortcuts
+
+- Open via `MadApp.openLauncherPanel` + suppress Home briefly so panels aren’t closed by a false Home.
+
+## Skill
+
+For full workflow and file map, read the **mad-launcher** skill (`.cursor/skills/mad-launcher/SKILL.md`).
+For invariants + 15‑min smoke, read **CONTRACTS.md** in that skill folder.

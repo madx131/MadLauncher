@@ -1,0 +1,8 @@
+{
+  "id": "conversions",
+  "name": "Unit conversion",
+  "enabled": true,
+  "offline": true,
+  "answerType": "conversions",
+  "examples": ["72 f to c", "10 kg to lb", "30 psi"]
+}

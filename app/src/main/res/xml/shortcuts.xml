@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_action_box"
+        android:shortcutId="action_box"
+        android:shortcutLongLabel="@string/action_box_shortcut_long"
+        android:shortcutShortLabel="@string/action_box_shortcut_short">
+        <intent
+            android:action="com.madlauncher.action.OPEN_ACTION_BOX"
+            android:targetClass="com.madlauncher.ActionBoxActivity"
+            android:targetPackage="com.madlauncher" />
+    </shortcut>
+</shortcuts>

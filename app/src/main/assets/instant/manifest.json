@@ -1,0 +1,7 @@
+{
+  "modules": [
+    { "id": "calc", "file": "calc.json" },
+    { "id": "conversions", "file": "conversions.json" },
+    { "id": "translate", "file": "translate.json" }
+  ]
+}

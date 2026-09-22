@@ -1,0 +1,8 @@
+{
+  "id": "calc",
+  "name": "Calculator",
+  "enabled": true,
+  "offline": true,
+  "answerType": "calc",
+  "examples": ["2+2", "(10-3)*4", "12/5"]
+}

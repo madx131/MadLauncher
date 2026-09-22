@@ -1,0 +1,8 @@
+{
+  "id": "translate",
+  "name": "Translator",
+  "enabled": true,
+  "offline": true,
+  "answerType": "translate",
+  "examples": ["/t hello", "/t from english to spanish good morning"]
+}

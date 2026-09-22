@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Command bar only: no shade, SMS inbox, overlay stickies, wallpaper, widgets, nav. -->
+    <uses-permission android:name="android.permission.READ_SMS" tools:node="remove" />
+    <uses-permission android:name="android.permission.RECEIVE_SMS" tools:node="remove" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" tools:node="remove" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" tools:node="remove" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" tools:node="remove" />
+    <uses-permission android:name="android.permission.EXPAND_STATUS_BAR" tools:node="remove" />
+    <uses-permission android:name="android.permission.STATUS_BAR" tools:node="remove" />
+    <uses-permission android:name="android.permission.STATUS_BAR_SERVICE" tools:node="remove" />
+    <uses-permission android:name="android.permission.SET_WALLPAPER" tools:node="remove" />
+    <uses-permission android:name="android.permission.SET_WALLPAPER_HINTS" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" tools:node="remove" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" tools:node="remove" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" tools:node="remove" />
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:node="remove" />
+    <uses-permission android:name="android.permission.GET_TASKS" tools:node="remove" />
+    <uses-permission android:name="android.permission.REAL_GET_TASKS" tools:node="remove" />
+    <uses-permission android:name="android.permission.BIND_APPWIDGET" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" tools:node="remove" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" tools:node="remove" />
+    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" tools:node="remove" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" tools:node="remove" />
+    <uses-permission android:name="com.android.launcher.permission.INSTALL_SHORTCUT" tools:node="remove" />
+    <uses-permission android:name="com.android.launcher.permission.UNINSTALL_SHORTCUT" tools:node="remove" />
+
+    <application
+        android:icon="@drawable/ic_action_box"
+        android:label="@string/app_name"
+        android:roundIcon="@drawable/ic_action_box"
+        tools:replace="android:icon,android:roundIcon,android:label">
+
+        <activity
+            android:name=".MainActivity"
+            android:enabled="false" />
+
+        <activity
+            android:name=".SetWallpaperActivity"
+            android:enabled="false" />
+
+        <activity
+            android:name=".pin.ConfirmPinActivity"
+            android:enabled="false" />
+
+        <activity
+            android:name=".overlay.StickyNotePickActivity"
+            android:enabled="false" />
+
+        <receiver
+            android:name=".pin.InstallShortcutReceiver"
+            android:enabled="false" />
+
+        <receiver
+            android:name=".notif.MockMessageReceiver"
+            android:enabled="false" />
+
+        <receiver
+            android:name=".data.DndAlarmReceiver"
+            android:enabled="false" />
+
+        <receiver
+            android:name=".BootReceiver"
+            android:enabled="false" />
+
+        <receiver
+            android:name=".NavShortcutReceiver"
+            android:enabled="false" />
+
+        <service
+            android:name=".overlay.StickyOverlayService"
+            android:enabled="false" />
+
+        <service
+            android:name=".overlay.EdgeDockOverlayService"
+            android:enabled="false" />
+
+        <service
+            android:name=".notif.MadNotificationListener"
+            android:enabled="false" />
+
+        <service
+            android:name=".a11y.MadAccessibilityService"
+            android:enabled="false" />
+    </application>
+</manifest>

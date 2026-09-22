@@ -1,0 +1,40 @@
+package com.madlauncher.ui.settings
+
+enum class SettingsRoute {
+    HUB,
+    THEMES,
+    ICONS,
+    GESTURES,
+    FONTS,
+    NAV_SHORTCUTS,
+    PERMISSIONS,
+    EDIT_DOCKS,
+    ACTION_BOX_COMMANDS,
+    ACTION_BOX_COMMAND_EDIT,
+    EXTRAS,
+    EXPERIMENTAL,
+    NOT_WORKING,
+    SHARE_APK,
+}
+
+enum class CommandEditId {
+    AT,
+    SOCIAL,
+    CALL,
+    VIDEO,
+    SEARCH,
+    NOTES,
+    TRANSLATE,
+    NAV,
+    STICKY,
+    AI,
+    CONTACT,
+    ADD_CONTACT,
+    HELP,
+    UPDATE_APPS,
+    REMINDER,
+    SYSTEM_SETTINGS,
+    LAUNCHER_SETTINGS,
+    ACTION_BOX_SETTINGS,
+    CUSTOM,
+}
