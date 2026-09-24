@@ -12,8 +12,8 @@ android {
         applicationId = "com.madlauncher"
         minSdk = 26
         targetSdk = 35
-        versionCode = 240
-        versionName = "0.9.116.11"
+        versionCode = 250
+        versionName = "0.9.116.21"
         val publicApk = (findProperty("MAD_PUBLIC_APK") as? String)?.equals("true", ignoreCase = true) == true
         val repoToken = if (publicApk) {
             ""

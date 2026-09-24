@@ -66,6 +66,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.madlauncher.R
 import kotlinx.coroutines.launch
+import com.madlauncher.data.HomeLayout
 import com.madlauncher.data.AppearanceSettings
 import com.madlauncher.data.GestureActionId
 import com.madlauncher.data.GestureId
@@ -341,8 +342,8 @@ private fun ThemesPage(vm: LauncherViewModel) {
         modifier = Modifier.padding(bottom = 8.dp),
     )
     SectionLabel(stringResource(R.string.settings_section_page_grid))
-    val gridSizes = listOf(3, 4, 5)
-    SegmentedRow(gridSizes.map { "${it}×$it" }, gridSizes.indexOf(s.homeGridSize.coerceIn(3, 5))) { idx ->
+    val gridSizes = HomeLayout.PAGE_GRID_SIZES
+    SegmentedRow(gridSizes.map { "${it}×$it" }, gridSizes.indexOf(s.homeGridSize.let { HomeLayout.normalizeGridSize(it) })) { idx ->
         vm.setDefaultHomeGridSize(gridSizes[idx])
     }
     Text(

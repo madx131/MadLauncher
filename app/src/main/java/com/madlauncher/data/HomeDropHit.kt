@@ -4,13 +4,26 @@ import android.graphics.RectF
 
 /** Home-grid drop targeting. Infinite pager duplicates must not steal the visible page's cells. */
 object HomeDropHit {
+    /** `"page:col,row"` → page, col, row. */
+    fun parseKey(key: String): Triple<Int, Int, Int>? {
+        val page = key.substringBefore(":").toIntOrNull() ?: return null
+        val parts = key.substringAfter(":").split(",")
+        if (parts.size != 2) return null
+        val col = parts[0].toIntOrNull() ?: return null
+        val row = parts[1].toIntOrNull() ?: return null
+        return Triple(page, col, row)
+    }
+
     fun pick(
         rects: Map<String, RectF>,
         x: Float,
         y: Float,
         preferredPage: Int,
+        validCell: (page: Int, col: Int, row: Int) -> Boolean = { _, _, _ -> true },
     ): String? {
         val hits = rects.mapNotNull { (key, rect) ->
+            val parsed = parseKey(key) ?: return@mapNotNull null
+            if (!validCell(parsed.first, parsed.second, parsed.third)) return@mapNotNull null
             if (!contains(rect.left, rect.top, rect.right, rect.bottom, x, y)) return@mapNotNull null
             key to area(rect.left, rect.top, rect.right, rect.bottom)
         }

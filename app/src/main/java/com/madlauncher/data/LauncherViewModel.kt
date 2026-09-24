@@ -80,6 +80,7 @@ import com.madlauncher.ui.settings.CommandEditId
 import com.madlauncher.ui.settings.SettingsBackStack
 import com.madlauncher.ui.settings.SettingsRoute
 import com.madlauncher.ui.WindowGeom
+import com.madlauncher.ui.openAppMenuOnHoldRelease
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -504,6 +505,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         private set
     var dragMoved by mutableStateOf(false)
         private set
+    private var holdStartedAt = 0L
     private var lastHomeFlipMs = 0L
     var dragX by mutableStateOf(0f)
     var dragY by mutableStateOf(0f)
@@ -523,6 +525,29 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         val prefix = HomeDropHit.pagePrefix(pageIndex)
         homeDropRects.keys.filter { it.startsWith(prefix) }.forEach { homeDropRects.remove(it) }
     }
+
+    fun setHomeDropRect(pageIndex: Int, col: Int, row: Int, grid: Int, rect: RectF) {
+        pruneHomeDropRects(pageIndex, grid)
+        if (col in 0 until grid && row in 0 until grid) {
+            homeDropRects["$pageIndex:$col,$row"] = rect
+        }
+    }
+
+    fun pruneHomeDropRects(pageIndex: Int, grid: Int) {
+        val prefix = HomeDropHit.pagePrefix(pageIndex)
+        homeDropRects.keys.filter { key ->
+            if (!key.startsWith(prefix)) return@filter false
+            val parsed = HomeDropHit.parseKey(key) ?: return@filter true
+            parsed.second !in 0 until grid || parsed.third !in 0 until grid
+        }.forEach { homeDropRects.remove(it) }
+    }
+
+    private fun pickHomeDrop(x: Float, y: Float): String? {
+        return HomeDropHit.pick(homeDropRects, x, y, homePageIndex) { page, col, row ->
+            val grid = homePages.getOrNull(page)?.let { gridSizeFor(it) } ?: return@pick false
+            col in 0 until grid && row in 0 until grid
+        }
+    }
     /** Window-space bounds of laid-out home items (after cell padding), keyed by "pageIndex:itemId". */
     val homeItemHitRects = mutableMapOf<String, RectF>()
     val edgeDropRects = mutableMapOf<String, RectF>()
@@ -533,36 +558,70 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         else homeItemHitRects[key] = RectF(rect)
     }
 
-    fun gridSizeFor(page: HomePage): Int = HomeLayout.gridSizeFor(page, displayAppearance.homeGridSize)
+    fun gridSizeFor(page: HomePage): Int =
+        HomeLayout.gridSizeFor(page, displayAppearance.homeGridSize)
 
     fun gridSizeFor(pageIndex: Int): Int =
-        homePages.getOrNull(pageIndex)?.let { gridSizeFor(it) } ?: displayAppearance.homeGridSize
+        homePages.getOrNull(pageIndex)?.let { gridSizeFor(it) }
+            ?: displayAppearance.homeGridSize.coerceIn(HomeLayout.MIN_GRID, HomeLayout.MAX_GRID)
+
+    fun homeGridColumns(page: HomePage): Int = gridSizeFor(page)
+
+    fun homeGridRows(page: HomePage): Int = gridSizeFor(page)
 
     fun setDefaultHomeGridSize(size: Int) {
-        val clamped = size.coerceIn(HomeLayout.MIN_GRID, HomeLayout.MAX_GRID)
+        val clamped = HomeLayout.normalizeGridSize(size)
         patchAppearanceDraft { it.copy(homeGridSize = clamped) }
+        applyThemeGridToEmptyPages(clamped)
+    }
+
+    private fun applyThemeGridToEmptyPages(size: Int) {
+        var changed = false
+        val next = homePages.map { page ->
+            if (page.kind != HomePageKind.EMPTY) page
+            else {
+                changed = true
+                clampPageItemsToGrid(page, size).copy(gridSize = size)
+            }
+        }
+        if (!changed) return
+        homePages = next
+        store.homePages = next
     }
 
     fun setCurrentPageGridSize(size: Int) {
         val idx = homePageIndex
         val page = homePages.getOrNull(idx) ?: return
         if (page.kind != HomePageKind.EMPTY) return
-        val clamped = size.coerceIn(HomeLayout.MIN_GRID, HomeLayout.MAX_GRID)
+        val clamped = HomeLayout.normalizeGridSize(size)
         replacePage(idx, clampPageItemsToGrid(page, clamped).copy(gridSize = clamped))
     }
 
     /**
      * True when a window-space point sits on a home desktop item (app / folder / widget).
-     * Uses real item bounds (not full grid cells) and insets widget edges so near-border
-     * presses count as free wallpaper for the home long-press menu.
+     * Apps and folders use the full grid cell so a grab on a sparse/empty page starts a
+     * drag instead of the wallpaper menu. Widgets still inset their edges so near-border
+     * presses count as free wallpaper.
      */
     fun touchHitsHomeItem(windowX: Float, windowY: Float, pageIndex: Int = homePageIndex): Boolean {
         val page = homePages.getOrNull(pageIndex) ?: return false
         for (item in page.items) {
+            val widgetish = item.isAppWidget ||
+                item.widget.isNotBlank() ||
+                item.kind.equals("glance", ignoreCase = true)
+            if (!widgetish) {
+                val spanX = item.spanX.toInt().coerceAtLeast(1)
+                val spanY = item.spanY.toInt().coerceAtLeast(1)
+                for (row in item.row until item.row + spanY) {
+                    for (col in item.col until item.col + spanX) {
+                        val cell = homeDropRects["$pageIndex:$col,$row"]
+                        if (cell != null && cell.contains(windowX, windowY)) return true
+                    }
+                }
+            }
             val rect = homeItemHitRects["$pageIndex:${item.id}"] ?: continue
-            val inset = homeItemEdgeInset(item, rect)
+            val inset = if (widgetish) homeItemEdgeInset(item, rect) else 0f
             if (rect.width() <= inset * 2f || rect.height() <= inset * 2f) {
-                // Tiny item — use full bounds.
                 if (rect.contains(windowX, windowY)) return true
                 continue
             }
@@ -776,6 +835,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         if (!com.madlauncher.BuildConfig.ACTION_BOX_APP) {
             migrateBuiltInWidgets()
             ensureDefaultGlanceWidget()
+            recoverOffGridHomeItems()
             applyAppearance(appearanceSettings, persist = false)
             AppearanceBridge.update(appearanceSettings)
             refreshWallpaperPalette()
@@ -816,7 +876,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
         val shortcutListener = {
             viewModelScope.launch(Dispatchers.Main) {
-                homePages = store.homePages
+                homePages = HomeLayout.recoverPages(store.homePages, displayAppearance.homeGridSize)
+                store.homePages = homePages
                 showToast("Home updated")
             }
             Unit
@@ -2960,6 +3021,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun runGestureAction(action: GestureActionId) {
+        if (appHold != null || widgetMovePreview != null) return
         when (action) {
             GestureActionId.NONE -> Unit
             GestureActionId.APP_DRAWER -> openAppDrawer()
@@ -3034,6 +3096,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             id = "p${System.currentTimeMillis()}",
             items = emptyList(),
             kind = kind,
+            gridSize = if (kind == HomePageKind.EMPTY) {
+                displayAppearance.homeGridSize.coerceIn(HomeLayout.MIN_GRID, HomeLayout.MAX_GRID)
+            } else {
+                0
+            },
             newsProviders = emptyList(),
         )
         store.homePages = homePages
@@ -3515,17 +3582,18 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             cancelPendingAppWidget()
             return
         }
-        var spanX = pendingAppWidgetSpan.first.coerceIn(1, gridSizeFor(page))
-        var spanY = pendingAppWidgetSpan.second.coerceIn(1, gridSizeFor(page))
+        var spanX = pendingAppWidgetSpan.first.coerceIn(1, homeGridColumns(page))
+        var spanY = pendingAppWidgetSpan.second.coerceIn(1, homeGridRows(page))
         val preferred = if (pendingPlaceCol >= 0 && pendingPlaceRow >= 0) {
             pendingPlaceCol to pendingPlaceRow
         } else null
         pendingPlaceCol = -1
         pendingPlaceRow = -1
-        val grid = gridSizeFor(page)
+        val cols = homeGridColumns(page)
+        val rows = homeGridRows(page)
         var cell = preferred?.takeIf { (col, row) ->
-            col + spanX <= grid &&
-                row + spanY <= grid &&
+            col + spanX <= cols &&
+                row + spanY <= rows &&
                 !cellTaken(page, col, row, spanX = spanX, spanY = spanY)
         }
         if (cell == null) cell = firstEmptyCell(page, spanX, spanY)
@@ -3594,13 +3662,14 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     private fun spansFor(info: AppWidgetProviderInfo): Pair<Int, Int> {
-        val grid = gridSizeFor(homePageIndex)
+        val cols = homeGridColumns(homePages.getOrNull(homePageIndex) ?: return 1 to 1)
+        val rows = homeGridRows(homePages.getOrNull(homePageIndex) ?: return 1 to 1)
         if (Build.VERSION.SDK_INT >= 31 && info.targetCellWidth > 0 && info.targetCellHeight > 0) {
-            return info.targetCellWidth.coerceIn(1, grid) to
-                info.targetCellHeight.coerceIn(1, grid)
+            return info.targetCellWidth.coerceIn(1, cols) to
+                info.targetCellHeight.coerceIn(1, rows)
         }
-        val spanX = ((info.minWidth + 30) / 70).coerceIn(1, grid)
-        val spanY = ((info.minHeight + 30) / 70).coerceIn(1, grid)
+        val spanX = ((info.minWidth + 30) / 70).coerceIn(1, cols)
+        val spanY = ((info.minHeight + 30) / 70).coerceIn(1, rows)
         return spanX to spanY
     }
 
@@ -3612,35 +3681,41 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun resizeWidget(itemId: String, spanX: Float, spanY: Float) {
-        val snapped = snapWidgetSpan(itemId, spanX, spanY) ?: run {
+        val page = homePages.getOrNull(homePageIndex) ?: return
+        val planned = HomeLayout.planWidgetResize(
+            page.items,
+            itemId,
+            spanX,
+            spanY,
+            homeGridColumns(page),
+        ) ?: run {
             showToast("Not enough space")
             return
         }
-        val page = homePages.getOrNull(homePageIndex) ?: return
-        val item = page.items.firstOrNull { it.id == itemId } ?: return
-        val updated = item.copy(spanX = snapped.first, spanY = snapped.second)
-        replacePage(homePageIndex, page.copy(items = page.items.map { if (it.id == itemId) updated else it }))
+        replacePage(homePageIndex, page.copy(items = planned))
     }
 
-    /** Snap a resize preview to whole grid tiles; null when the size would overlap another item. */
+    /** Snap a resize preview to whole grid tiles; null when leftover items cannot be packed. */
     fun snapWidgetSpan(itemId: String, spanX: Float, spanY: Float): Pair<Float, Float>? {
         val page = homePages.getOrNull(homePageIndex) ?: return null
-        val item = page.items.firstOrNull { it.id == itemId } ?: return null
-        val grid = gridSizeFor(page)
-        val maxSpanXInt = (grid - item.col).coerceAtLeast(1)
-        val maxSpanYInt = (grid - item.row).coerceAtLeast(1)
-        val sx = kotlin.math.round(spanX).toInt().coerceIn(1, maxSpanXInt).toFloat()
-        val sy = kotlin.math.round(spanY).toInt().coerceIn(1, maxSpanYInt).toFloat()
-        if (!widgetFits(page, item.col, item.row, sx, sy, itemId, grid)) return null
-        return sx to sy
+        val planned = HomeLayout.planWidgetResize(
+            page.items,
+            itemId,
+            spanX,
+            spanY,
+            homeGridColumns(page),
+        ) ?: return null
+        val widget = planned.firstOrNull { it.id == itemId } ?: return null
+        return widget.spanX to widget.spanY
     }
 
     fun previewWidgetMove(itemId: String, col: Int, row: Int) {
         val page = homePages.getOrNull(homePageIndex) ?: return
         val item = page.items.firstOrNull { it.id == itemId } ?: return
-        val grid = gridSizeFor(page)
-        val destCol = col.coerceIn(0, (grid - item.spanX).toInt().coerceAtLeast(0))
-        val destRow = row.coerceIn(0, (grid - item.spanY).toInt().coerceAtLeast(0))
+        val cols = homeGridColumns(page)
+        val rows = homeGridRows(page)
+        val destCol = col.coerceIn(0, (cols - item.spanX).toInt().coerceAtLeast(0))
+        val destRow = row.coerceIn(0, (rows - item.spanY).toInt().coerceAtLeast(0))
         if (destCol == item.col && destRow == item.row) {
             widgetMovePreview = null
             widgetSwapPartnerId = null
@@ -3649,8 +3724,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
         val partner = findSwapPartner(page, item, destCol, destRow)
         if (partner != null &&
-            widgetFits(page, item.col, item.row, partner.spanX, partner.spanY, partner.id, grid, setOf(itemId)) &&
-            widgetFits(page, destCol, destRow, item.spanX, item.spanY, itemId, grid, setOf(partner.id))
+            widgetFits(page, item.col, item.row, partner.spanX, partner.spanY, partner.id, cols, setOf(itemId)) &&
+            widgetFits(page, destCol, destRow, item.spanX, item.spanY, itemId, cols, setOf(partner.id))
         ) {
             widgetMovePreview = itemId to (destCol to destRow)
             widgetSwapPartnerId = partner.id
@@ -3658,7 +3733,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             return
         }
         widgetSwapPartnerId = null
-        if (!widgetFits(page, destCol, destRow, item.spanX, item.spanY, itemId, grid)) return
+        if (!widgetFits(page, destCol, destRow, item.spanX, item.spanY, itemId, cols)) return
         widgetMovePreview = itemId to (destCol to destRow)
         dragDropKey = "$homePageIndex:$destCol,$destRow"
     }
@@ -3725,6 +3800,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             fromPageIndex = fromPageIndex ?: if (from == "home") homePageIndex else null,
         )
         dragMoved = false
+        holdStartedAt = SystemClock.uptimeMillis()
         appMenu = null
         // Don't lock the pager yet — flipping userScrollEnabled cancels the pointer and pops the menu.
         if (from == "drawer") {
@@ -3741,7 +3817,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         val edgeHit = edgeDropRects.entries.firstOrNull { (_, rect) -> rect.contains(x, y) }?.key
         dragDropKey = edgeHit
             ?: dockDropRects.indices.firstOrNull { dockDropRects[it].contains(x, y) }?.let { "dock:$it" }
-            ?: HomeDropHit.pick(homeDropRects, x, y, homePageIndex)
+            ?: pickHomeDrop(x, y)
         if (edgeHit != null) {
             EdgeSide.fromKey(edgeHit.substringBefore(":"))?.let { expandedEdge = it }
         } else {
@@ -3777,6 +3853,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             id = "p${System.currentTimeMillis()}",
             items = emptyList(),
             kind = HomePageKind.EMPTY,
+            gridSize = HomeLayout.DEFAULT_GRID,
         )
         store.homePages = homePages
         homePageIndex = homePages.lastIndex
@@ -3825,9 +3902,17 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             if (hold.from == "drawer" && placed) appDrawerOpen = false
             appMenu = null
             cancelHold()
-        } else {
+        } else if (openAppMenuOnHoldRelease(
+                dragMoved = dragMoved,
+                heldStillMs = SystemClock.uptimeMillis() - holdStartedAt,
+            )
+        ) {
             appMenu = hold
             appMenuGuardUntil = SystemClock.uptimeMillis() + 400
+            cancelHold()
+        } else {
+            // Dragged, or released before the menu delay — put it back, no menu.
+            appMenu = null
             cancelHold()
         }
     }
@@ -3861,6 +3946,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun cancelHold() {
         appHold = null
         dragMoved = false
+        holdStartedAt = 0L
         dragDropKey = null
         unlockHomePagerIfIdle()
     }
@@ -3885,14 +3971,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 return true
             }
         }
-        val hitKey = HomeDropHit.pick(homeDropRects, x, y, homePageIndex)
+        val hitKey = pickHomeDrop(x, y)
         if (hitKey != null) {
-            val pageIdx = hitKey.substringBefore(":").toIntOrNull() ?: homePageIndex
-            val parts = hitKey.substringAfter(":").split(",")
-            val col = parts.getOrNull(0)?.toIntOrNull()
-            val row = parts.getOrNull(1)?.toIntOrNull()
-            if (col != null && row != null) {
-                placeOnHome(hold, col, row, pageIdx)
+            val parsed = HomeDropHit.parseKey(hitKey)
+            if (parsed != null) {
+                placeOnHome(hold, parsed.second, parsed.third, parsed.first)
                 dragDropKey = null
                 return true
             }
@@ -3994,6 +4077,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         val page = homePages.getOrNull(pageIndex) ?: return
         if (page.kind != HomePageKind.EMPTY) {
             showToast("Drop apps on an empty page")
+            return
+        }
+        val grid = gridSizeFor(page)
+        if (col !in 0 until grid || row !in 0 until grid) {
+            showToast("Not placed")
             return
         }
         val sourceItem = hold.itemId?.let { id ->
@@ -4309,9 +4397,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     private fun firstEmptyCell(page: HomePage, spanX: Int, spanY: Int): Pair<Int, Int>? {
-        val grid = gridSizeFor(page)
-        for (row in 0..grid - spanY) {
-            for (col in 0..grid - spanX) {
+        val cols = homeGridColumns(page)
+        val rows = homeGridRows(page)
+        for (row in 0..rows - spanY) {
+            for (col in 0..cols - spanX) {
                 if (!cellTaken(page, col, row, spanX = spanX, spanY = spanY)) return col to row
             }
         }
@@ -4319,17 +4408,14 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     private fun clampPageItemsToGrid(page: HomePage, gridSize: Int): HomePage {
-        val items = page.items.mapNotNull { item ->
-            if (item.col >= gridSize || item.row >= gridSize) return@mapNotNull null
-            val maxSpanX = gridSize - item.col.toFloat()
-            val maxSpanY = gridSize - item.row.toFloat()
-            if (maxSpanX < HomeLayout.MIN_SPAN || maxSpanY < HomeLayout.MIN_SPAN) return@mapNotNull null
-            item.copy(
-                spanX = item.spanX.coerceAtMost(maxSpanX),
-                spanY = item.spanY.coerceAtMost(maxSpanY),
-            )
-        }
-        return page.copy(items = items)
+        return page.copy(items = HomeLayout.reflowItemsToGrid(page.items, gridSize))
+    }
+
+    private fun recoverOffGridHomeItems() {
+        val recovered = HomeLayout.recoverPages(homePages, displayAppearance.homeGridSize)
+        if (recovered == homePages) return
+        homePages = recovered
+        store.homePages = recovered
     }
 
     private fun rectsOverlap(
@@ -4374,10 +4460,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         alsoIgnore: Set<String> = emptySet(),
     ): Boolean {
         if (col < 0 || row < 0) return false
-        if (col + spanX > grid + 0.001f) return false
-        if (row + spanY > grid + 0.001f) return false
-        for (x in 0 until grid) {
-            for (y in 0 until grid) {
+        val cols = grid
+        val rows = homeGridRows(page)
+        if (col + spanX > cols + 0.001f) return false
+        if (row + spanY > rows + 0.001f) return false
+        for (x in 0 until cols) {
+            for (y in 0 until rows) {
                 val here = x + 1 > col && x < col + spanX && y + 1 > row && y < row + spanY
                 if (here && page.items.any { it.id != ignoreId && it.id !in alsoIgnore && it.occupies(x, y) }) {
                     return false

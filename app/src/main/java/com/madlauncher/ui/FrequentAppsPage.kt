@@ -96,8 +96,9 @@ fun FrequentAppsPage(
                     .fillMaxWidth()
                     .padding(top = 12.dp),
             ) {
-                val iconSize = homeIconSize(vm.displayAppearance.homeIconSizeDp)
-                val columns = columnsForIconSize(maxWidth, iconSize)
+                val spec = homeIconGridSpec(maxWidth, vm.displayAppearance.homeIconSizeDp)
+                val iconSize = spec.iconSize
+                val columns = spec.columns
                 // Most-used-first list: bottom mode pins the first row next to the dock and fills upward.
                 val rows = remember(vm.frequentApps, columns) { vm.frequentApps.chunked(columns) }
                 val displayRows = if (fromBottom) rows.asReversed() else rows

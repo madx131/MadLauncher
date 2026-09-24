@@ -547,14 +547,15 @@ private fun HomePagePane(
                         .weight(1f)
                         .fillMaxWidth(),
                 ) {
-                    val grid = vm.gridSizeFor(pageIndex)
+                    val grid = vm.gridSizeFor(pageIndex).coerceIn(HomeLayout.MIN_GRID, HomeLayout.MAX_GRID)
                     val cellW = maxWidth / grid
-                    val iconSize = iconSizeForCell(vm.displayAppearance.homeIconSizeDp, cellW, cellW)
-                    // Keep the Settings icon size; grow cells vertically (scroll) instead of
-                    // shrinking icons in landscape or stretching them across a wide row.
-                    val cellH = maxOf(iconSize + 22.dp, maxHeight / grid)
+                    val cellH = maxHeight / grid
+                    val iconSize = emptyPageIconSize(vm.displayAppearance.homeIconSizeDp, cellW, cellH)
                     val gridH = cellH * grid
                     val gridScroll = rememberScrollState()
+                    LaunchedEffect(pageIndex, grid) {
+                        vm.pruneHomeDropRects(pageIndex, grid)
+                    }
                     val movingId = vm.widgetMovePreview?.first
                     val moveDest = vm.widgetMovePreview?.second
                     val swapPartnerId = vm.widgetSwapPartnerId
@@ -576,7 +577,9 @@ private fun HomePagePane(
                             )
                             .verticalScroll(
                                 state = gridScroll,
-                                enabled = gridH > maxHeight + 0.5.dp,
+                                enabled = gridH > maxHeight + 0.5.dp &&
+                                    vm.editingWidgetId == null &&
+                                    vm.widgetResizePreview == null,
                             ),
                     ) {
                         Box(
@@ -597,7 +600,13 @@ private fun HomePagePane(
                                                 if (acceptDropRects) {
                                                     Modifier.onGloballyPositioned { coords ->
                                                         val b = coords.boundsInWindow()
-                                                        vm.homeDropRects[key] = RectF(b.left, b.top, b.right, b.bottom)
+                                                        vm.setHomeDropRect(
+                                                            pageIndex,
+                                                            col,
+                                                            row,
+                                                            grid,
+                                                            RectF(b.left, b.top, b.right, b.bottom),
+                                                        )
                                                     }
                                                 } else {
                                                     Modifier
@@ -727,6 +736,32 @@ fun columnsForIconSize(availableWidth: Dp, iconSize: Dp): Int {
     return (availableWidth.value / cell.value).toInt().coerceAtLeast(1)
 }
 
+/** Same icon size, column count, and cell size as Most-used / the app drawer. */
+data class HomeIconGridSpec(
+    val iconSize: Dp,
+    val columns: Int,
+    val cellW: Dp,
+    val cellH: Dp,
+)
+
+fun homeIconGridSpec(availableWidth: Dp, iconSizeDp: Float): HomeIconGridSpec {
+    val iconSize = homeIconSize(iconSizeDp)
+    val columns = columnsForIconSize(availableWidth, iconSize)
+    return HomeIconGridSpec(
+        iconSize = iconSize,
+        columns = columns,
+        cellW = availableWidth / columns,
+        cellH = iconSize + 22.dp,
+    )
+}
+
+fun emptyPageIconSize(sliderDp: Float, cellW: Dp, cellH: Dp): Dp {
+    val wanted = homeIconSize(sliderDp)
+    val maxW = (cellW - 8.dp).coerceAtLeast(1.dp)
+    val maxH = (cellH - 28.dp).coerceAtLeast(1.dp)
+    return minOf(wanted, maxW, maxH)
+}
+
 /**
  * Icon size inside a grid cell. [sliderDp] is Settings → Icons (homeIconSizeDp).
  * Uses the slider as-is; only shrinks if the cell is narrower than the icon
@@ -771,7 +806,9 @@ private fun HomeAppCell(vm: LauncherViewModel, app: LaunchableApp, item: HomeIte
         verticalArrangement = Arrangement.Center,
     ) {
         Column(
-            modifier = Modifier.keepUpright(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .keepUpright(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             DesktopIcon(vm, app, iconSize, rotateUpright = false)
@@ -782,6 +819,9 @@ private fun HomeAppCell(vm: LauncherViewModel, app: LaunchableApp, item: HomeIte
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .padding(horizontal = 2.dp)
+                    .fillMaxWidth(),
             )
         }
     }
@@ -1256,7 +1296,7 @@ private fun WidgetCell(vm: LauncherViewModel, item: HomeItem, cellW: Dp, cellH: 
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(top = 22.dp, start = 8.dp, end = 22.dp, bottom = 22.dp)
+                    .padding(top = 22.dp, start = 8.dp, end = 22.dp, bottom = 30.dp)
                     .zIndex(1f)
                     .pointerInput(item.id, item.col, item.row, cellW, cellH) {
                         val cellWPx = with(density) { cellW.toPx() }.coerceAtLeast(1f)
@@ -1327,7 +1367,7 @@ private fun WidgetCell(vm: LauncherViewModel, item: HomeItem, cellW: Dp, cellH: 
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .height(20.dp)
+                    .height(28.dp)
                     .background(LocalMadTheme.current.colors.primary.copy(alpha = 0.35f))
                     .zIndex(3f),
                 itemId = item.id,
@@ -1397,39 +1437,48 @@ private fun WidgetResizeHandle(
         modifier = modifier.pointerInput(itemId, cellW, cellH, horizontal, vertical) {
             val cellWPx = with(density) { cellW.toPx() }.coerceAtLeast(1f)
             val cellHPx = with(density) { cellH.toPx() }.coerceAtLeast(1f)
-            var startX = currentX()
-            var startY = currentY()
-            var accX = 0f
-            var accY = 0f
-            detectDragGestures(
-                onDragStart = {
-                    onDragStart()
-                    startX = currentX()
-                    startY = currentY()
-                    accX = 0f
-                    accY = 0f
-                },
-                onDragEnd = { onCommit(currentX(), currentY()) },
-                onDragCancel = { onCommit(currentX(), currentY()) },
-                onDrag = { change, drag ->
-                    change.consume()
-                    accX += drag.x
-                    accY += drag.y
-                    val nextX = if (horizontal) {
-                        kotlin.math.round(startX + accX / cellWPx)
-                    } else {
-                        kotlin.math.round(startX)
+            awaitEachGesture {
+                val down = awaitFirstDown(
+                    requireUnconsumed = false,
+                    pass = PointerEventPass.Initial,
+                )
+                down.consume()
+                onDragStart()
+                val startX = currentX()
+                val startY = currentY()
+                var accX = 0f
+                var accY = 0f
+                var last = down.position
+                try {
+                    while (true) {
+                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        change.consume()
+                        if (!change.pressed) break
+                        accX += change.position.x - last.x
+                        accY += change.position.y - last.y
+                        last = change.position
+                        val nextX = if (horizontal) spanFromDrag(startX, accX, cellWPx) else startX
+                        val nextY = if (vertical) spanFromDrag(startY, accY, cellHPx) else startY
+                        onPreview(nextX, nextY)
                     }
-                    val nextY = if (vertical) {
-                        kotlin.math.round(startY + accY / cellHPx)
-                    } else {
-                        kotlin.math.round(startY)
-                    }
-                    onPreview(nextX, nextY)
-                },
-            )
+                } finally {
+                    onCommit(currentX(), currentY())
+                }
+            }
         },
     )
+}
+
+/** Step a span after ~0.35 of a cell so tall home cells still grow on a short drag. */
+internal fun spanFromDrag(start: Float, accPx: Float, cellPx: Float): Float {
+    val cells = accPx / cellPx.coerceAtLeast(1f)
+    val stepped = if (cells >= 0f) {
+        kotlin.math.floor((cells + 0.65f).toDouble()).toFloat()
+    } else {
+        kotlin.math.ceil((cells - 0.65f).toDouble()).toFloat()
+    }
+    return start + stepped
 }
 
 @Composable
@@ -1763,7 +1812,7 @@ fun HomeCustomizeSheet(
                 SheetRow(stringResource(R.string.remove_page)) { vm.removeHomePage() }
                 val current = vm.homePages.getOrNull(vm.homePageIndex)
                 if (current?.kind == HomePageKind.EMPTY) {
-                    val gridSizes = listOf(3, 4, 5)
+                    val gridSizes = HomeLayout.PAGE_GRID_SIZES
                     val activeGrid = vm.gridSizeFor(current)
                     Text(
                         stringResource(R.string.settings_section_page_grid),

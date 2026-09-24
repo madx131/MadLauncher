@@ -251,8 +251,9 @@ data class AppearanceSettings(
                 gestures = gestures,
                 landscapeGesturesEnabled = o.optBoolean("landscapeGesturesEnabled", false),
                 landscapeRotateContents = o.optBoolean("landscapeRotateContents", false),
-                homeGridSize = o.optInt("homeGridSize", HomeLayout.DEFAULT_GRID)
-                    .coerceIn(HomeLayout.MIN_GRID, HomeLayout.MAX_GRID),
+                homeGridSize = HomeLayout.normalizeGridSize(
+                    o.optInt("homeGridSize", HomeLayout.DEFAULT_GRID),
+                ),
                 showDockApps = o.optBoolean("showDockApps", true),
                 showDockActionBox = o.optBoolean("showDockActionBox", true),
                 dockHeightDp = o.optDouble("dockHeightDp", 68.0).toFloat(),

@@ -5,7 +5,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -31,8 +30,30 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 private enum class PressOutcome { Tap, LongPress, Cancel }
 
-/** Pickup delay — short enough to drag, long enough not to steal taps. Menu still opens on release. */
+/** Pickup delay — short enough to drag, long enough not to steal taps. */
 private const val IconPickupTimeoutMs = 180L
+
+/** Extra still-hold after pickup before release opens the icon shortcut menu. */
+internal const val IconMenuExtraHoldMs = 420L
+
+/** Wallpaper menu waits at least this long so an icon pickup (180ms) can win first. */
+internal const val PageContextMenuMinTimeoutMs = 550L
+
+internal fun pageContextMenuTimeoutMs(systemLongPressMs: Long): Long =
+    maxOf(systemLongPressMs, PageContextMenuMinTimeoutMs)
+
+/** A real drag should cancel the wallpaper menu; stock touch slop is too tight on empty pages. */
+internal fun pageContextMenuSlopPx(touchSlop: Float): Float = touchSlop * 2.5f
+
+/** Movement after pickup that counts as a drag (Compose `drag()` waits for full slop and misses this). */
+internal fun iconDragDetectSlopPx(touchSlop: Float): Float = (touchSlop * 0.45f).coerceAtLeast(4f)
+
+/** Shortcut menu: still finger AND held long enough after pickup. Any drag cancels the menu. */
+internal fun openAppMenuOnHoldRelease(
+    dragMoved: Boolean,
+    heldStillMs: Long,
+    menuDelayMs: Long = IconMenuExtraHoldMs,
+): Boolean = !dragMoved && heldStillMs >= menuDelayMs
 
 /**
  * Long-press / tap / drag that cooperates with scrollables (LazyColumn, HorizontalPager).
@@ -98,13 +119,17 @@ fun Modifier.appLongPress(
                                 }
                             }
                             onMove(windowPos(origin).x, windowPos(origin).y, false)
-                            drag(down.id) { change ->
+                            val dragSlop = iconDragDetectSlopPx(slop)
+                            while (true) {
+                                val event = awaitPointerEvent(PointerEventPass.Main)
+                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                if (!change.pressed) break
                                 val win = windowPos(change.position)
                                 if (!moved &&
                                     hypot(
                                         (change.position.x - origin.x).toDouble(),
                                         (change.position.y - origin.y).toDouble(),
-                                    ) > slop
+                                    ) > dragSlop
                                 ) {
                                     moved = true
                                 }
@@ -152,12 +177,13 @@ fun Modifier.homePageContextMenu(
                 val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
                 val win = coords?.takeIf { it.isAttached }?.localToWindow(down.position) ?: down.position
                 if (ignoreState.value(win.x, win.y)) return@awaitEachGesture
-                val slop = viewConfiguration.touchSlop
-                val outcome = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                val slop = pageContextMenuSlopPx(viewConfiguration.touchSlop)
+                val outcome = withTimeoutOrNull(pageContextMenuTimeoutMs(viewConfiguration.longPressTimeoutMillis)) {
                     while (true) {
                         val event = awaitPointerEvent(PointerEventPass.Initial)
                         val change = event.changes.firstOrNull { it.id == down.id }
                             ?: return@withTimeoutOrNull PressOutcome.Cancel
+                        if (!enabledState.value) return@withTimeoutOrNull PressOutcome.Cancel
                         if (change.isConsumed) return@withTimeoutOrNull PressOutcome.Cancel
                         if (!change.pressed) return@withTimeoutOrNull PressOutcome.Tap
                         val dist = hypot(
@@ -173,6 +199,8 @@ fun Modifier.homePageContextMenu(
                     PressOutcome.Tap -> onTapState.value()
                     PressOutcome.Cancel -> Unit
                     PressOutcome.LongPress -> {
+                        // Icon pickup sets appHold while this wait is idle (no move events).
+                        if (!enabledState.value) return@awaitEachGesture
                         view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
                         onLongPressState.value()
                         while (true) {
@@ -244,6 +272,7 @@ fun Modifier.launcherHomeGestures(
             }
 
             while (true) {
+                if (!enabledState.value) return@awaitEachGesture
                 val initial = awaitPointerEvent(PointerEventPass.Initial)
                 val pressed = initial.changes.filter { it.pressed }
                 if (pressed.isEmpty()) break
@@ -304,6 +333,7 @@ fun Modifier.launcherHomeGestures(
                 }
             }
 
+            if (!enabledState.value) return@awaitEachGesture
             when (mode) {
                 GestureMode.SINGLE_VERTICAL -> when {
                     totalY < -swipeThresh -> onSwipeUpState.value()
@@ -331,10 +361,12 @@ fun Modifier.launcherHomeGestures(
  * Otherwise [onSwipeUp] / [onSwipeDown] run on release.
  */
 fun Modifier.dockSwipeGestures(
+    enabled: Boolean = true,
     onPullUp: () -> Boolean = { false },
     onSwipeUp: () -> Unit,
     onSwipeDown: () -> Unit,
 ): Modifier = composed {
+    val enabledState = rememberUpdatedState(enabled)
     val onPull = rememberUpdatedState(onPullUp)
     val onUp = rememberUpdatedState(onSwipeUp)
     val onDown = rememberUpdatedState(onSwipeDown)
@@ -342,12 +374,21 @@ fun Modifier.dockSwipeGestures(
         val slop = viewConfiguration.touchSlop
         val thresh = slop * 3.5f
         awaitEachGesture {
+            if (!enabledState.value) {
+                awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Final)
+                while (true) {
+                    val idle = awaitPointerEvent(PointerEventPass.Final)
+                    if (idle.changes.none { it.pressed }) break
+                }
+                return@awaitEachGesture
+            }
             awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
             var totalX = 0f
             var totalY = 0f
             var vertical: Boolean? = null
             var pulled = false
             while (true) {
+                if (!enabledState.value) return@awaitEachGesture
                 val event = awaitPointerEvent(PointerEventPass.Initial)
                 val pressed = event.changes.filter { it.pressed }
                 if (pressed.isEmpty()) break
@@ -363,6 +404,7 @@ fun Modifier.dockSwipeGestures(
                     if (onPull.value()) pulled = true
                 }
             }
+            if (!enabledState.value) return@awaitEachGesture
             if (vertical == true && !pulled) {
                 when {
                     totalY < -thresh -> onUp.value()

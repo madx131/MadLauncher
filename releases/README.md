@@ -1,16 +1,12 @@
 ﻿# MAD public APKs
 
-- `MAD-launcher-latest.apk` — always the newest build
-- `MAD-0.9.106.9.apk` — this version (matches `app/build.gradle.kts`)
+- `MAD-launcher-latest.apk` — always the newest public build (no distributor token / no Share MAD UI)
 
-Also on disk (older):
+Download (repo collaborators, GitHub login required):
+https://github.com/madx131/MadLauncher/raw/main/releases/MAD-launcher-latest.apk
 
-- `MAD-0.9.106.8.apk`
-- `MAD-0.9.106.7.apk`
+To share with people who are not collaborators, use Settings → Extras → Share MAD → Send APK
+(the distributor build downloads this public APK with the token and shares the file).
 
-The debug/flavor copies live under `app/build/outputs/` (gitignored), so they do not show as files in the repo root:
-
-- `app/build/outputs/apk/debug/app-debug.apk`
-- `app/build/outputs/apk/launcher/debug/app-launcher-debug.apk`
-
-Poco currently has **0.9.106.9** (`versionCode` 212).
+Built with `-PMAD_PUBLIC_APK=true` so `SHOW_APK_SHARE=false`.
+Local archive: `versions\MAD-0.9.116.21-latest.apk`.

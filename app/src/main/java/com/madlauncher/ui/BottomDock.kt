@@ -112,6 +112,7 @@ fun BottomDock(vm: LauncherViewModel) {
             .height(height)
             .background(c.card.copy(alpha = theme.dockAlpha))
             .dockSwipeGestures(
+                enabled = vm.appHold == null && vm.widgetMovePreview == null,
                 onPullUp = { vm.onDockPullUp() },
                 onSwipeUp = { vm.onDockSwipeUp() },
                 onSwipeDown = { vm.onDockSwipeDown() },

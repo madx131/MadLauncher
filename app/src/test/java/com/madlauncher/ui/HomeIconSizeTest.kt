@@ -28,6 +28,12 @@ class HomeIconSizeTest {
     }
 
     @Test
+    fun emptyPageIconFitsLabelInCell() {
+        val icon = emptyPageIconSize(56f, cellW = 64.dp, cellH = 72.dp)
+        assertEquals(44.dp, icon)
+    }
+
+    @Test
     fun largeIconsWrapToFewerColumns() {
         assertEquals(3, columnsForIconSize(availableWidth = 328.dp, iconSize = 88.dp))
         assertEquals(5, columnsForIconSize(availableWidth = 328.dp, iconSize = 56.dp))
@@ -36,5 +42,12 @@ class HomeIconSizeTest {
     @Test
     fun landscapeFitsMoreSameSizeIcons() {
         assertEquals(9, columnsForIconSize(availableWidth = 608.dp, iconSize = 56.dp))
+    }
+
+    @Test
+    fun tallCellGrowsAfterShortVerticalDrag() {
+        assertEquals(3f, spanFromDrag(start = 2f, accPx = 50f, cellPx = 140f))
+        assertEquals(2f, spanFromDrag(start = 2f, accPx = 20f, cellPx = 140f))
+        assertEquals(1f, spanFromDrag(start = 2f, accPx = -50f, cellPx = 140f))
     }
 }

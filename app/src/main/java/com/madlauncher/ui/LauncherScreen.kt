@@ -247,7 +247,9 @@ private fun LauncherScreenBody(
         val homeGesturesEnabled = (!landscape || landscapeGestures) &&
             !vm.homeEditMode &&
             vm.editingWidgetId == null &&
-            !vm.appDrawerOpen
+            !vm.appDrawerOpen &&
+            vm.appHold == null &&
+            vm.widgetMovePreview == null
         val currentHomeKind = vm.homePages.getOrNull(vm.homePageIndex)?.kind
         val allowVerticalHomeGestures = currentHomeKind != HomePageKind.NEWS
         val stealVerticalHomeGestures = currentHomeKind == HomePageKind.FREQUENT
