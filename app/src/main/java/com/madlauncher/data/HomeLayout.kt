@@ -117,6 +117,11 @@ object HomeLayout {
         return normalizeGridSize(page.gridSize, defaultGridSize)
     }
 
+    fun frequentCapacity(gridSize: Int, defaultGridSize: Int = DEFAULT_GRID): Int {
+        val grid = normalizeGridSize(gridSize, defaultGridSize)
+        return grid * grid
+    }
+
     fun normalizeGridSize(size: Int, defaultGridSize: Int = DEFAULT_GRID): Int {
         val mapped = if (size == 3) MAX_GRID else size
         return if (mapped in MIN_GRID..MAX_GRID) {
@@ -143,6 +148,31 @@ object HomeLayout {
      * Fit every item into [gridSize]. Icons that still fit stay put; the rest
      * pack into the first free cells (widgets shrink if they must).
      */
+    /** Closest free 1×1 cell to [nearCol],[nearRow], or null when the page is full. */
+    fun firstEmptyCell(
+        items: List<HomeItem>,
+        gridSize: Int,
+        nearCol: Int = 0,
+        nearRow: Int = 0,
+    ): Pair<Int, Int>? {
+        val grid = gridSize.coerceIn(MIN_GRID, MAX_GRID)
+        var best: Pair<Int, Int>? = null
+        var bestDist = Int.MAX_VALUE
+        for (row in 0 until grid) {
+            for (col in 0 until grid) {
+                if (items.any { it.occupies(col, row) }) continue
+                val dx = col - nearCol
+                val dy = row - nearRow
+                val dist = dx * dx + dy * dy
+                if (dist < bestDist) {
+                    bestDist = dist
+                    best = col to row
+                }
+            }
+        }
+        return best
+    }
+
     fun itemFitsGrid(item: HomeItem, gridSize: Int): Boolean {
         val grid = gridSize.coerceIn(MIN_GRID, MAX_GRID)
         val spanX = item.spanX.toInt().coerceAtLeast(1)

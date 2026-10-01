@@ -35,12 +35,11 @@ class TranslateCommandParserTest {
     }
 
     @Test
-    fun applyLanguage_insertsToBeforeText() {
-        val spanish = TranslatorLanguages.byCode("es")!!
-        assertEquals(
-            "/t to spanish hello ",
-            TranslateCommandParser.applyLanguage("/t hello", spanish),
-        )
+    fun parse_textOnlyDoesNotRequireToInTheBox() {
+        val parsed = TranslateCommandParser.parse("hello")
+        assertEquals("hello", parsed.text)
+        assertNull(parsed.toCode)
+        assertEquals(TranslateLangSlot.To, parsed.activeSlot)
     }
 
     @Test

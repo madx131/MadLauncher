@@ -27,15 +27,15 @@ class SearchableAppsKeywordsTest {
         val cal = resolved(SearchableApps.catalog.first { it.appName == "Calendar" })
         val installed = listOf(yt, cal)
 
-        val ytHits = SearchableApps.matching(":yt", installed)
+        val ytHits = SearchableApps.matching("!yt", installed)
         assertEquals(1, ytHits.size)
         assertEquals("YouTube", ytHits.first().def.appName)
 
-        val calHits = SearchableApps.matching(":cal", installed)
+        val calHits = SearchableApps.matching("!cal", installed)
         assertEquals(1, calHits.size)
         assertEquals("Calendar", calHits.first().def.appName)
 
-        val prefixHits = SearchableApps.matching(":calend", installed)
+        val prefixHits = SearchableApps.matching("!calend", installed)
         assertEquals(1, prefixHits.size)
         assertEquals("Calendar", prefixHits.first().def.appName)
     }

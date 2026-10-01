@@ -77,7 +77,7 @@ object CommandDetector {
         return digits.length >= 3 && s.trim().matches(Regex("^[\\d\\s+()-]+$"))
     }
 
-    fun detect(raw: String): ActionCommand {
+    fun detect(raw: String, skipUserShortcuts: Boolean = false): ActionCommand {
         if (raw.isEmpty()) return ActionCommand.None
         val trimmedLower = raw.trim().lowercase()
         if (trimmedLower == "911" || trimmedLower.startsWith("911 ")) {
@@ -86,7 +86,7 @@ object CommandDetector {
         if (isBarrelRoll(raw)) return ActionCommand.BarrelRoll
 
         val alias = CommandAliases.matchDetailed(raw)
-        val custom = UserShortcuts.matchDetailed(raw)
+        val custom = if (skipUserShortcuts) null else UserShortcuts.matchDetailed(raw)
         when {
             alias != null && custom != null ->
                 return if (custom.first.length > alias.first.length) custom.second else alias.second
@@ -104,7 +104,9 @@ object CommandDetector {
             val body = raw.dropWhile { it == '@' }
             return ActionCommand.ChatPick(body)
         }
-        if (raw.startsWith("!")) return ActionCommand.PostPick(raw.substring(1))
+        if (raw.startsWith(":") || raw.startsWith("：")) {
+            return ActionCommand.PostPick(raw.substring(1))
+        }
         if (raw.startsWith("?")) return ActionCommand.AiAsk(raw.substring(1).trim())
         if (raw.startsWith("&")) return ActionCommand.ContactLookup(raw.substring(1).trimStart())
         if (raw.startsWith("*")) return ActionCommand.VideoCall(raw.substring(1))

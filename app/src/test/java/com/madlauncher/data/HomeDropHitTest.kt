@@ -14,9 +14,9 @@ class HomeDropHitTest {
     }
 
     @Test
-    fun canHitNeighborPageWhenCurrentMisses() {
+    fun ignoresNeighborPageWhenCurrentMisses() {
         val hits = listOf("1:0,0" to 6400f)
-        assertEquals("1:0,0", HomeDropHit.choose(hits, preferredPage = 0))
+        assertNull(HomeDropHit.choose(hits, preferredPage = 0))
     }
 
     @Test
@@ -40,6 +40,13 @@ class HomeDropHitTest {
             parsed != null && parsed.second in 0 until 5 && parsed.third in 0 until 5
         }
         assertEquals("0:1,4", HomeDropHit.choose(live, preferredPage = 0))
+    }
+
+    @Test
+    fun centeredInUsesInnerHalf() {
+        assertTrue(HomeDropHit.centeredIn(0f, 0f, 100f, 100f, 50f, 50f))
+        assertTrue(!HomeDropHit.centeredIn(0f, 0f, 100f, 100f, 5f, 50f))
+        assertTrue(HomeDropHit.contains(0f, 0f, 100f, 100f, 5f, 50f))
     }
 
     @Test

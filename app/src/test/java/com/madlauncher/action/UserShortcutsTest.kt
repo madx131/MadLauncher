@@ -14,6 +14,18 @@ class UserShortcutsTest {
     }
 
     @Test
+    fun calcModeIgnoresNumericShortcut() {
+        UserShortcuts.replace(
+            listOf(UserShortcut("num1", listOf("1"), "com.example.one")),
+        )
+        assertTrue(CommandDetector.detect("1") is ActionCommand.OpenApp)
+        assertEquals(ActionCommand.None, CommandDetector.detect("1", skipUserShortcuts = true))
+        val calc = CommandDetector.detect("2-1", skipUserShortcuts = true)
+        assertTrue(calc is ActionCommand.Calc)
+        assertEquals("1", (calc as ActionCommand.Calc).result.answer)
+    }
+
+    @Test
     fun slashDAndDoOpenApp() {
         UserShortcuts.replace(
             listOf(UserShortcut("1", listOf("/d", "do"), "com.todoist")),

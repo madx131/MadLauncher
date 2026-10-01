@@ -17,7 +17,7 @@ enum class UserShortcutCombo {
     val prefix: String
         get() = when (this) {
             CHAT -> "@"
-            SOCIAL -> "!"
+            SOCIAL -> ":"
             CALL -> "#"
             VIDEO -> "*"
         }

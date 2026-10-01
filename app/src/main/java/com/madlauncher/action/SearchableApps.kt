@@ -24,6 +24,8 @@ data class SearchableAppDef(
      * MAD copies the query and opens the app so the user can paste into in-app search.
      */
     val assistedSearch: Boolean = false,
+    /** When the app is not installed, `!alias query` can still open [searchUrl]. */
+    val siteSearch: Boolean = true,
     val altSearchUrls: (String) -> List<String> = { emptyList() },
     /** Last param so trailing-lambda catalog entries bind correctly. */
     val searchUrl: (String) -> String,
@@ -141,6 +143,7 @@ object SearchableApps {
             color = 0xFF0084FF,
             packages = listOf("com.facebook.orca"),
             assistedSearch = true,
+            siteSearch = false,
             searchUrl = { _ -> "" },
         ),
         SearchableAppDef(
@@ -180,6 +183,7 @@ object SearchableApps {
                 "com.android.calendar",
                 "com.samsung.android.calendar",
             ),
+            siteSearch = false,
             searchUrl = { _ -> "" },
         ),
         SearchableAppDef(
@@ -223,7 +227,7 @@ object SearchableApps {
         ) { q -> "https://www.amazon.com/s?k=${enc(q)}" },
         SearchableAppDef(
             "Wikipedia", "Wikipedia",
-            listOf("wiki", "wikip", "wikipedia"),
+            listOf("w", "wiki", "wikip", "wikipedia"),
             0xFFA8A8A8,
             listOf("org.wikipedia"),
         ) { q -> "https://en.wikipedia.org/w/index.php?search=${enc(q)}" },
@@ -234,6 +238,7 @@ object SearchableApps {
             color = 0xFF5865F2,
             packages = listOf("com.discord"),
             assistedSearch = true,
+            siteSearch = false,
             searchUrl = { _ -> "https://discord.com/channels/@me" },
         ),
         SearchableAppDef(
@@ -248,6 +253,34 @@ object SearchableApps {
             0xFFE60023,
             listOf("com.pinterest"),
         ) { q -> "https://www.pinterest.com/search/pins/?q=${enc(q)}" },
+    )
+
+    /** Sites that open in the browser when no app is installed. */
+    val webBangs: List<SearchableAppDef> = listOf(
+        SearchableAppDef(
+            appName = "Urban Dictionary",
+            displayName = "Urban Dictionary",
+            keywords = listOf("ud", "urban"),
+            color = 0xFFE85D04,
+            packages = emptyList(),
+            searchUrl = { q -> "https://www.urbandictionary.com/define.php?term=${enc(q)}" },
+        ),
+        SearchableAppDef(
+            appName = "IMDb",
+            displayName = "IMDb",
+            keywords = listOf("imdb"),
+            color = 0xFFF5C518,
+            packages = emptyList(),
+            searchUrl = { q -> "https://www.imdb.com/find/?q=${enc(q)}" },
+        ),
+        SearchableAppDef(
+            appName = "Stack Overflow",
+            displayName = "Stack Overflow",
+            keywords = listOf("so", "stackoverflow"),
+            color = 0xFFF48024,
+            packages = emptyList(),
+            searchUrl = { q -> "https://stackoverflow.com/search?q=${enc(q)}" },
+        ),
     )
 
     /** Curated + auto-detected searchable apps that are currently installed. */
@@ -292,13 +325,13 @@ object SearchableApps {
     }
 
     /**
-     * In-app search is triggered with `:` + app alias, e.g. `:yt`, `:spotify`, or one-shot `:yt cats`.
-     * A lone `:` lists installed searchable apps.
+     * Site search is `!` + alias, e.g. `!yt`, `!yt cats`.
+     * Installed apps open in the app. A lone `!` lists those apps.
      */
     fun matching(query: String, installed: List<ResolvedSearchApp>): List<ResolvedSearchApp> {
         val trimmed = query.trim()
-        if (!trimmed.startsWith(":")) return emptyList()
-        val rest = trimmed.removePrefix(":").trim()
+        if (!trimmed.startsWith("!")) return emptyList()
+        val rest = trimmed.removePrefix("!").trim()
         if (rest.isEmpty()) return installed.take(24)
         val alias = rest.substringBefore(' ').lowercase()
         val exact = installed.filter { item ->
@@ -316,7 +349,7 @@ object SearchableApps {
     }
 
     /**
-     * Parse one-shot `:alias query` (e.g. `:ig cats`, `:yt music jazz`).
+     * Parse one-shot `!alias query` (e.g. `!ig cats`, `!yt music jazz`) for an installed app.
      * Returns null when there is no trailing search text yet.
      */
     fun parseInlineSearch(
@@ -324,8 +357,8 @@ object SearchableApps {
         installed: List<ResolvedSearchApp>,
     ): Pair<ResolvedSearchApp, String>? {
         val trimmed = query.trim()
-        if (!trimmed.startsWith(":")) return null
-        val rest = trimmed.removePrefix(":").trim()
+        if (!trimmed.startsWith("!")) return null
+        val rest = trimmed.removePrefix("!").trim()
         if (rest.isEmpty() || ' ' !in rest && '\t' !in rest) return null
         val lower = rest.lowercase()
         var best: Pair<ResolvedSearchApp, Int>? = null
@@ -349,18 +382,68 @@ object SearchableApps {
         return matched.first to q
     }
 
+    /**
+     * `!ud yeet` / `!w paris` when that app is not installed.
+     * Opens the site search URL instead.
+     */
+    fun parseWebBang(
+        query: String,
+        installed: List<ResolvedSearchApp>,
+    ): Pair<SearchableAppDef, String>? {
+        val trimmed = query.trim()
+        if (!trimmed.startsWith("!")) return null
+        val rest = trimmed.removePrefix("!").trim()
+        if (rest.isEmpty() || ' ' !in rest && '\t' !in rest) return null
+        val lower = rest.lowercase()
+        var best: Pair<SearchableAppDef, Int>? = null
+        for (def in matchingWeb(trimmed, installed)) {
+            val candidates = def.keywords + listOf(def.displayName, def.appName)
+            for (kw in candidates) {
+                val k = kw.trim().lowercase()
+                if (k.isEmpty() || lower == k) continue
+                if (lower.startsWith("$k ")) {
+                    if (best == null || k.length > best.second) best = def to k.length
+                }
+            }
+        }
+        val matched = best ?: return null
+        val q = rest.substring(matched.second).trim()
+        if (q.isEmpty()) return null
+        return matched.first to q
+    }
+
+    /** Catalog and web-only sites that are not installed, for `!` suggestions. */
+    fun matchingWeb(query: String, installed: List<ResolvedSearchApp>): List<SearchableAppDef> {
+        val trimmed = query.trim()
+        if (!trimmed.startsWith("!")) return emptyList()
+        val alias = trimmed.removePrefix("!").trim().substringBefore(' ').lowercase()
+        val takenPackages = installed.map { it.app.packageName }.toSet()
+        val takenNames = installed.map { it.def.appName.lowercase() }.toSet()
+        val pool = (catalog + webBangs).filter { def ->
+            def.siteSearch &&
+                def.appName.lowercase() !in takenNames &&
+                def.packages.none { it in takenPackages }
+        }
+        if (alias.isEmpty()) return pool.take(16)
+        return pool.filter { def ->
+            def.keywords.any { kw ->
+                kw.equals(alias, ignoreCase = true) ||
+                    (alias.length >= 2 && kw.startsWith(alias, ignoreCase = true))
+            } || def.displayName.startsWith(alias, ignoreCase = true)
+        }
+    }
+
     fun autocomplete(query: String, installed: List<ResolvedSearchApp>, apps: List<LaunchableApp>): String? {
         val trimmed = query.trim()
-        if (trimmed.startsWith(":")) {
-            val q = trimmed.removePrefix(":").trim().lowercase()
+        if (trimmed.startsWith("!")) {
+            val q = trimmed.removePrefix("!").trim().lowercase()
             if (q.isEmpty() || ' ' in q) return null
-            val kw = installed.asSequence()
-                .flatMap {
-                    it.def.keywords.asSequence() +
-                        sequenceOf(it.def.displayName.lowercase(), it.app.label.lowercase())
+            val kw = (installed.map { it.def } + matchingWeb(trimmed, installed)).asSequence()
+                .flatMap { def ->
+                    def.keywords.asSequence() + sequenceOf(def.displayName.lowercase(), def.appName.lowercase())
                 }
                 .firstOrNull { it.startsWith(q) && it.length > q.length }
-            return kw?.let { ":$it" }
+            return kw?.let { "!$it" }
         }
         val q = trimmed.lowercase()
         if (q.length < 2) return null

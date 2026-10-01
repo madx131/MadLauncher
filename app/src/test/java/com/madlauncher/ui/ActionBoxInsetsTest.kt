@@ -28,4 +28,10 @@ class ActionBoxInsetsTest {
         val lift = actionBoxLiftDp(ime = 120.dp, nav = 48.dp, closedDock = 96.dp)
         assertEquals(128.dp, lift)
     }
+
+    @Test
+    fun animationIgnoresASnappedFinalInset() {
+        assertEquals(40, resolveImeBottomPx(previous = 40, reported = 900, accept = false))
+        assertEquals(120, resolveImeBottomPx(previous = 40, reported = 120, accept = true))
+    }
 }

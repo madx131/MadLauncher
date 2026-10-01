@@ -34,8 +34,8 @@ object InstantAnswerClient {
         }
     }
 
-    fun shouldFetchWeb(query: String, enabled: Boolean): Boolean =
-        enabled && shouldLookup(query)
+    fun shouldFetchWeb(query: String, enabled: Boolean, duckDuckGo: Boolean = true): Boolean =
+        enabled && duckDuckGo && shouldLookup(query)
 
     fun parse(json: String): InstantAnswer? {
         val answerType = jsonField(json, "AnswerType").trim().lowercase()

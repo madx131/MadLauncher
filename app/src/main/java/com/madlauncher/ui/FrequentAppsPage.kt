@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -32,6 +33,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.madlauncher.R
+import com.madlauncher.data.HomeLayout
 import com.madlauncher.data.HomePage
 import com.madlauncher.data.LaunchableApp
 import com.madlauncher.data.LauncherViewModel
@@ -43,7 +45,7 @@ fun FrequentAppsPage(
     page: HomePage,
     modifier: Modifier = Modifier,
 ) {
-    LaunchedEffect(page.id, page.frequentSortTop, vm.apps) {
+    LaunchedEffect(page.id, page.frequentSortTop, vm.apps, vm.displayAppearance.homeGridSize) {
         vm.refreshFrequentApps()
     }
     Column(
@@ -96,30 +98,30 @@ fun FrequentAppsPage(
                     .fillMaxWidth()
                     .padding(top = 12.dp),
             ) {
-                val spec = homeIconGridSpec(maxWidth, vm.displayAppearance.homeIconSizeDp)
-                val iconSize = spec.iconSize
-                val columns = spec.columns
-                // Most-used-first list: bottom mode pins the first row next to the dock and fills upward.
-                val rows = remember(vm.frequentApps, columns) { vm.frequentApps.chunked(columns) }
-                val displayRows = if (fromBottom) rows.asReversed() else rows
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .align(if (fromBottom) Alignment.BottomCenter else Alignment.TopCenter),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    displayRows.forEach { rowApps ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            rowApps.forEach { app ->
-                                Box(modifier = Modifier.weight(1f)) {
-                                    FrequentAppCell(vm, app, iconSize)
-                                }
+                val grid = HomeLayout.normalizeGridSize(vm.displayAppearance.homeGridSize)
+                val shown = remember(vm.frequentApps, grid) {
+                    vm.frequentApps.take(HomeLayout.frequentCapacity(grid))
+                }
+                val cellW = maxWidth / grid
+                val cellH = maxHeight / grid
+                val iconSize = emptyPageIconSize(vm.displayAppearance.homeIconSizeDp, cellW, cellH)
+                Box(Modifier.fillMaxSize()) {
+                    for (row in 0 until grid) {
+                        for (col in 0 until grid) {
+                            val idx = if (fromBottom) {
+                                (grid - 1 - row) * grid + col
+                            } else {
+                                row * grid + col
                             }
-                            repeat(columns - rowApps.size) {
-                                Spacer(modifier = Modifier.weight(1f))
+                            val app = shown.getOrNull(idx) ?: continue
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopStart)
+                                    .padding(start = cellW * col, top = cellH * row)
+                                    .size(cellW, cellH),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                FrequentAppCell(vm, app, iconSize)
                             }
                         }
                     }

@@ -36,10 +36,10 @@ private data class HelpRowSpec(
 )
 
 private val helpRowSpecs = listOf(
-    HelpRowSpec(":", R.string.help_app_search_label, R.string.help_app_search_desc) { it.yellow },
+    HelpRowSpec("!", R.string.help_app_search_label, R.string.help_app_search_desc) { it.yellow },
     HelpRowSpec("@", R.string.help_at_label, R.string.help_at_desc) { it.primary },
     HelpRowSpec("&", R.string.help_contact_lookup_label, R.string.help_contact_lookup_desc) { it.primary },
-    HelpRowSpec("!", R.string.help_social_label, R.string.help_social_desc) { it.orange },
+    HelpRowSpec(":", R.string.help_social_label, R.string.help_social_desc) { it.orange },
     HelpRowSpec("*", R.string.help_video_call_label, R.string.help_video_call_desc) { it.red },
     HelpRowSpec("?", R.string.help_group_label, R.string.help_group_desc) { it.primary },
     HelpRowSpec("#", R.string.help_call_label, R.string.help_call_desc) { it.green },
@@ -50,10 +50,11 @@ private val helpRowSpecs = listOf(
     HelpRowSpec("/s", R.string.help_sticky_label, R.string.help_sticky_desc) { it.yellow },
     HelpRowSpec("/r", R.string.help_reminder_label, R.string.help_reminder_desc) { it.accent },
     HelpRowSpec("/c", R.string.help_schedule_label, R.string.help_schedule_desc) { it.purple },
+    HelpRowSpec("calc", R.string.help_calc_label, R.string.help_calc_desc) { it.accent },
     HelpRowSpec("/ls", R.string.help_launcher_settings_label, R.string.help_launcher_settings_desc) { it.primary },
     HelpRowSpec("/abs", R.string.help_action_box_settings_label, R.string.help_action_box_settings_desc) { it.primary },
     HelpRowSpec("/ss", R.string.help_system_settings_label, R.string.help_system_settings_desc) { it.primary },
-    HelpRowSpec("update", R.string.help_update_label, R.string.help_update_desc) { it.accent },
+    HelpRowSpec("/u", R.string.help_update_label, R.string.help_update_desc) { it.accent },
     HelpRowSpec("911", R.string.help_emergency_label, R.string.help_emergency_desc) { it.red },
 )
 

@@ -176,6 +176,14 @@ fun ActionBoxCommandsPage(vm: LauncherViewModel) {
         CommandIndexRow(stringResource(R.string.action_box_your_commands), stringResource(R.string.action_box_your_commands_hint)) {
             vm.openCommandEdit(CommandEditId.CUSTOM)
         }
+        if (vm.independentActionBox) {
+            CommandIndexRow(
+                stringResource(R.string.settings_route_about),
+                stringResource(R.string.about_actionbox_sub),
+            ) {
+                vm.openAbout(SettingsRoute.ACTION_BOX_COMMANDS)
+            }
+        }
     }
 }
 
@@ -185,7 +193,8 @@ private fun ActionBoxSearchSettings(vm: LauncherViewModel) {
     val c = LocalMadTheme.current.colors
     val s = vm.appearanceDraft
     val engine = s.webSearchEngine
-    val instantOn = s.instantAnswersEnabled
+    val ddgEngine = engine == WebSearchEngine.DUCKDUCKGO
+    val instantOn = s.instantAnswerCardsEnabled
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -248,13 +257,17 @@ private fun ActionBoxSearchSettings(vm: LauncherViewModel) {
                     fontWeight = FontWeight.Medium,
                 )
                 Text(
-                    stringResource(R.string.action_box_instant_answers_sub),
-                    color = c.muted,
+                    stringResource(
+                        if (ddgEngine) R.string.action_box_instant_answers_sub
+                        else R.string.action_box_instant_answers_ddg_only,
+                    ),
+                    color = if (ddgEngine) c.muted else c.primary,
                     fontSize = 12.sp,
                 )
             }
             Switch(
                 checked = instantOn,
+                enabled = ddgEngine,
                 onCheckedChange = { vm.setInstantAnswersEnabled(it) },
             )
         }
@@ -340,6 +353,26 @@ fun ActionBoxCommandEditPage(vm: LauncherViewModel) {
 @Composable
 private fun SearchCommandEditPage(vm: LauncherViewModel) {
     val c = LocalMadTheme.current.colors
+    var word by remember { mutableStateOf("") }
+    var useLink by remember { mutableStateOf(false) }
+    var link by remember { mutableStateOf("") }
+    var pickedPkg by remember { mutableStateOf("") }
+    var appFilter by remember { mutableStateOf("") }
+    LaunchedEffect(Unit) {
+        val pending = vm.consumePendingBangPhrase()
+        if (pending.isEmpty()) return@LaunchedEffect
+        word = pending
+        val hit = AppFuzzy.rank(pending, vm.apps, limit = 1, name = { it.label }).firstOrNull()
+        if (hit != null) {
+            pickedPkg = hit.packageName
+            appFilter = hit.label
+        }
+    }
+    val appHits = if (appFilter.isBlank()) {
+        emptyList()
+    } else {
+        AppFuzzy.rank(appFilter, vm.apps, limit = 6, name = { it.label })
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -347,11 +380,91 @@ private fun SearchCommandEditPage(vm: LauncherViewModel) {
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        Text(stringResource(R.string.action_box_bang_add_title), color = c.fg, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Text(stringResource(R.string.action_box_bang_add_hint), color = c.muted, fontSize = 12.sp)
+        vm.customBangs.forEach { bang ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(c.secondary.copy(alpha = 0.45f))
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+            ) {
+                Text("!${bang.phrase}", color = c.fg, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Text(
+                    if (bang.isLink) bang.searchUrl else bang.packageName,
+                    color = c.muted,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 8.dp),
+                )
+                Icon(
+                    Icons.Outlined.Close,
+                    contentDescription = stringResource(R.string.action_clear),
+                    tint = c.muted,
+                    modifier = Modifier
+                        .size(18.dp)
+                        .clickable { vm.removeCustomBang(bang.id) },
+                )
+            }
+        }
+        Text(stringResource(R.string.action_box_bang_word), color = c.muted, fontSize = 11.sp)
+        BangField(word, stringResource(R.string.action_box_bang_word_hint)) { word = it }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            BangModeChip(stringResource(R.string.action_box_bang_app), selected = !useLink) { useLink = false }
+            BangModeChip(stringResource(R.string.action_box_bang_link), selected = useLink) { useLink = true }
+        }
+        if (useLink) {
+            BangField(link, stringResource(R.string.action_box_bang_link_hint)) { link = it }
+        } else {
+            BangField(appFilter, stringResource(R.string.action_box_bang_filter_app)) { appFilter = it }
+            appHits.forEach { app ->
+                val selected = app.packageName == pickedPkg
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (selected) c.primary.copy(alpha = 0.18f) else c.secondary.copy(alpha = 0.45f))
+                        .clickable {
+                            pickedPkg = app.packageName
+                            appFilter = app.label
+                        }
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                ) {
+                    AppIcon(app.icon, app.label, size = 28.dp)
+                    Text(app.label, color = c.fg, fontSize = 13.sp, modifier = Modifier.padding(start = 10.dp))
+                }
+            }
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(c.primary)
+                .clickable {
+                    vm.saveCustomBang(
+                        phraseRaw = word,
+                        packageName = if (useLink) "" else pickedPkg,
+                        searchUrl = if (useLink) link else "",
+                    )
+                }
+                .padding(vertical = 10.dp),
+            horizontalArrangement = Arrangement.Center,
+        ) {
+            Text(stringResource(R.string.action_box_bang_save), color = c.bg, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        }
         Text(
             stringResource(R.string.action_box_search_edit_hint),
             color = c.muted,
             fontSize = 12.sp,
+            modifier = Modifier.padding(top = 8.dp),
         )
+        CatalogBangSection(vm)
+        Text(stringResource(R.string.action_box_bang_builtin), color = c.fg, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
         if (vm.searchableApps.isEmpty()) {
             Text(stringResource(R.string.action_box_search_none), color = c.muted, fontSize = 13.sp)
         } else {
@@ -375,6 +488,81 @@ private fun SearchCommandEditPage(vm: LauncherViewModel) {
             }
         }
     }
+}
+
+@Composable
+private fun CatalogBangSection(vm: LauncherViewModel) {
+    val c = LocalMadTheme.current.colors
+    var filter by remember { mutableStateOf("") }
+    val rev = vm.bangCatalogRev
+    val rows = remember(filter, rev) {
+        vm.matchingBangCatalog(filter, if (filter.isBlank()) 30 else 60)
+    }
+    Text(
+        stringResource(R.string.action_box_bang_catalog, vm.bangCatalogCount()),
+        color = c.fg,
+        fontSize = 14.sp,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.padding(top = 8.dp),
+    )
+    Text(stringResource(R.string.action_box_bang_catalog_hint), color = c.muted, fontSize = 12.sp)
+    BangField(filter, stringResource(R.string.action_box_bang_catalog_filter)) { filter = it }
+    rows.forEach { entry ->
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(c.secondary.copy(alpha = 0.45f))
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+        ) {
+            Text("!${entry.trigger}", color = c.fg, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Text(
+                entry.name,
+                color = c.muted,
+                fontSize = 12.sp,
+                maxLines = 1,
+                modifier = Modifier.padding(start = 8.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun BangModeChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    val c = LocalMadTheme.current.colors
+    Text(
+        label,
+        color = if (selected) c.bg else c.fg,
+        fontSize = 12.sp,
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (selected) c.primary else c.secondary.copy(alpha = 0.45f))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+    )
+}
+
+@Composable
+private fun BangField(value: String, hint: String, onChange: (String) -> Unit) {
+    val c = LocalMadTheme.current.colors
+    BasicTextField(
+        value = value,
+        onValueChange = onChange,
+        singleLine = true,
+        textStyle = TextStyle(color = c.fg, fontSize = 14.sp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(c.secondary.copy(alpha = 0.45f))
+            .padding(horizontal = 10.dp, vertical = 10.dp),
+        decorationBox = { inner ->
+            Box {
+                if (value.isEmpty()) Text(hint, color = c.muted, fontSize = 13.sp)
+                inner()
+            }
+        },
+    )
 }
 
 @Composable
@@ -567,6 +755,15 @@ private fun YourCommandsSection(vm: LauncherViewModel) {
         wizardGen++
         addOpen = true
         editingId = null
+    }
+    LaunchedEffect(vm.pendingYourCommandKind, vm.pendingYourCommandPhrase) {
+        val pendingKind = vm.pendingYourCommandKind ?: return@LaunchedEffect
+        resetAddForm()
+        kind = pendingKind
+        if (vm.pendingYourCommandPhrase.isNotBlank()) {
+            draft = vm.pendingYourCommandPhrase
+        }
+        vm.consumePendingYourCommand()
     }
     val editing = editingId?.let { id -> vm.userShortcuts.firstOrNull { it.id == id } }
     Column(

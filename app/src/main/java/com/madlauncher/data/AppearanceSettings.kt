@@ -165,6 +165,9 @@ data class AppearanceSettings(
     val accentColor: Color get() = Color(accentArgb)
     val actionBoxPillColor: Color get() = Color(actionBoxPillArgb)
     val actionBoxTextColor: Color get() = Color(actionBoxTextArgb)
+    /** Web Instant Answer cards only when DuckDuckGo is the search engine. */
+    val instantAnswerCardsEnabled: Boolean
+        get() = instantAnswersEnabled && webSearchEngine == WebSearchEngine.DUCKDUCKGO
 
     companion object {
         fun defaultNavSlots(): List<NavShortcutSlot> = listOf(
@@ -217,6 +220,7 @@ data class AppearanceSettings(
                     }
                 }
             }
+            val engine = enumOr(o.optString("webSearchEngine"), WebSearchEngine.DUCKDUCKGO)
             return AppearanceSettings(
                 themeMode = ThemeMode.SYSTEM,
                 palette = normalizePalette(enumOr(o.optString("palette"), PaletteId.NORD)),
@@ -271,8 +275,9 @@ data class AppearanceSettings(
                 experimentalNavShortcuts = o.optBoolean("experimentalNavShortcuts", false),
                 experimentalMadRecents = o.optBoolean("experimentalMadRecents", false),
                 experimentalWidgetBadges = o.optBoolean("experimentalWidgetBadges", false),
-                webSearchEngine = enumOr(o.optString("webSearchEngine"), WebSearchEngine.DUCKDUCKGO),
-                instantAnswersEnabled = o.optBoolean("instantAnswersEnabled", true),
+                webSearchEngine = engine,
+                instantAnswersEnabled = o.optBoolean("instantAnswersEnabled", true) &&
+                    engine == WebSearchEngine.DUCKDUCKGO,
             )
         }
 

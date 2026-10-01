@@ -1096,7 +1096,7 @@ fun OpenFolderOverlay(vm: LauncherViewModel, modifier: Modifier = Modifier) {
                 }
             }
             Text(
-                "Long-press an app to remove · Tap title to rename",
+                "Long-press an app to place it on the page · Tap title to rename",
                 color = theme.colors.muted,
                 fontSize = 11.sp,
                 modifier = Modifier.padding(top = 10.dp),

@@ -32,7 +32,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -141,8 +140,9 @@ private fun LauncherScreenBody(
     val activity = LocalContext.current as? Activity
     val appContext = LocalContext.current.applicationContext
     var rootCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
-    // ADJUST_RESIZE + IME padding double-lifts the pill; match ActionBoxActivity.
-    SideEffect {
+    // ADJUST_RESIZE + IME padding double-lifts the pill. Set once per open so the
+    // mode change does not restart on every keyboard frame.
+    LaunchedEffect(activity, vm.actionBoxOpen) {
         activity?.window?.setSoftInputMode(
             if (vm.actionBoxOpen) {
                 WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING

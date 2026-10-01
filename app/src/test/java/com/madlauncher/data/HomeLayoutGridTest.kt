@@ -5,6 +5,20 @@ import org.junit.Test
 
 class HomeLayoutGridTest {
     @Test
+    fun firstEmptyCellSkipsOccupiedAndPrefersNearby() {
+        val items = listOf(
+            HomeItem(id = "a", kind = "app", col = 0, row = 0),
+            HomeItem(id = "f", kind = "folder", col = 1, row = 0),
+        )
+        assertEquals(0 to 1, HomeLayout.firstEmptyCell(items, 4, 0, 0))
+        assertEquals(2 to 0, HomeLayout.firstEmptyCell(items, 4, 1, 0))
+        val full = (0 until 4).flatMap { row ->
+            (0 until 4).map { col -> HomeItem(id = "$col,$row", kind = "app", col = col, row = row) }
+        }
+        org.junit.Assert.assertNull(HomeLayout.firstEmptyCell(full, 4, 0, 0))
+    }
+
+    @Test
     fun unsetEmptyPageDefaultsToFive() {
         val page = HomePage(id = "p", items = emptyList())
         assertEquals(5, HomeLayout.gridSizeFor(page))
@@ -66,6 +80,9 @@ class HomeLayoutGridTest {
         assertEquals(4, HomeLayout.gridSizeFor(four))
         assertEquals(6, HomeLayout.gridSizeFor(six))
         assertEquals(listOf(4, 5, 6), HomeLayout.PAGE_GRID_SIZES)
+        assertEquals(16, HomeLayout.frequentCapacity(4))
+        assertEquals(25, HomeLayout.frequentCapacity(5))
+        assertEquals(36, HomeLayout.frequentCapacity(6))
     }
 
     @Test

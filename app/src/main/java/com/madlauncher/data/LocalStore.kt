@@ -630,6 +630,12 @@ class LocalStore(context: Context) {
         get() = com.madlauncher.action.UserAliasCatalog.fromJson(prefs.getString("user_command_aliases", null))
         set(value) { prefs.edit().putString("user_command_aliases", value.toJson()).apply() }
 
+    var customBangs: List<com.madlauncher.action.CustomBang>
+        get() = com.madlauncher.action.CustomBang.fromJson(prefs.getString("custom_bangs", null))
+        set(value) {
+            prefs.edit().putString("custom_bangs", com.madlauncher.action.CustomBang.toJson(value)).apply()
+        }
+
     var userShortcuts: List<com.madlauncher.action.UserShortcut>
         get() = com.madlauncher.action.UserShortcuts.fromJson(prefs.getString("user_shortcuts", null))
         set(value) { prefs.edit().putString("user_shortcuts", com.madlauncher.action.UserShortcuts.toJson(value)).apply() }

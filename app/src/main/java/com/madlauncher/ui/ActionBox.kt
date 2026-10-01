@@ -65,6 +65,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.key.Key
@@ -92,6 +93,8 @@ import com.madlauncher.action.TranslateCommandParser
 import com.madlauncher.action.TranslateLangSlot
 import com.madlauncher.action.CalcResult
 import com.madlauncher.action.CommandDetector
+import com.madlauncher.action.CustomBang
+import com.madlauncher.action.PlusQuery
 import com.madlauncher.action.InstantAnswer
 import com.madlauncher.action.InstantAnswerClient
 import com.madlauncher.action.InstantModules
@@ -173,7 +176,7 @@ fun ActionBox(
             UserShortcutCombo.CHAT -> Icons.Outlined.Person
         }
         cmd is ActionCommand.AddUserCommand -> Icons.Outlined.Add
-        cmd is ActionCommand.Calc -> Icons.Outlined.Calculate
+        vm.calcMode || cmd is ActionCommand.Calc -> Icons.Outlined.Calculate
         cmd is ActionCommand.UpdateApps -> Icons.Outlined.Refresh
         cmd is ActionCommand.BarrelRoll -> Icons.Outlined.Search
         else -> Icons.Outlined.Search
@@ -188,6 +191,7 @@ fun ActionBox(
         vm.composeKind == ActionAppKind.Contacts ||
         vm.composeKind == ActionAppKind.Ai ||
         vm.composeKind == ActionAppKind.Nav ||
+        vm.calcMode ||
         cmd !is ActionCommand.None
     val plainSearch = cmd is ActionCommand.None && vm.composeApp == null &&
         vm.composeContact == null &&
@@ -195,7 +199,13 @@ fun ActionBox(
         vm.composeKind != ActionAppKind.Translator &&
         vm.composeKind != ActionAppKind.Notes &&
         vm.composeKind != ActionAppKind.Ai &&
-        vm.composeKind != ActionAppKind.Nav
+        vm.composeKind != ActionAppKind.Nav &&
+        !vm.calcMode
+
+    val keyboard = LocalSoftwareKeyboardController.current
+    LaunchedEffect(vm.calcMode, vm.actionQuery) {
+        if (vm.calcMode) keyboard?.hide()
+    }
 
     val fieldStyle = MaterialTheme.typography.bodyLarge.copy(color = accent)
     val placeholderStyle = MaterialTheme.typography.bodyLarge.copy(color = accent.copy(alpha = 0.55f))
@@ -428,8 +438,9 @@ fun ActionBox(
                         cmd is ActionCommand.Calc -> CalcResultCard(
                             result = cmd.result,
                             ddg = vm.instantAnswer?.takeIf {
-                                it.fromDuckDuckGo && vm.appearanceSettings.instantAnswersEnabled
+                                it.fromDuckDuckGo && vm.appearanceSettings.instantAnswerCardsEnabled
                             },
+                            onEquals = { vm.evaluateCalc() },
                         )
                         cmd is ActionCommand.OpenApp -> {
                             val app = vm.apps.firstOrNull { it.packageName == cmd.packageName }
@@ -548,6 +559,11 @@ fun ActionBox(
                     .weight(1f)
                     .focusRequester(focus)
                     .onPreviewKeyEvent { event ->
+                        val equals = event.key == Key.Equals || event.key == Key.NumPadEquals
+                        if (equals) {
+                            if (event.type == KeyEventType.KeyUp) vm.evaluateCalc()
+                            return@onPreviewKeyEvent true
+                        }
                         val enter = event.key == Key.Enter || event.key == Key.NumPadEnter || event.key == Key.DirectionCenter
                         if (!enter) return@onPreviewKeyEvent false
                         if (event.type == KeyEventType.KeyUp) vm.runPrimaryAction()
@@ -587,6 +603,10 @@ fun ActionBox(
                 Icon(Icons.Outlined.Close, contentDescription = stringResource(R.string.action_close), tint = accent.copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
             }
         }
+        if (vm.calcMode) {
+            Spacer(Modifier.height(8.dp))
+            CalcKeypad(onKey = vm::typeCalcKey)
+        }
     }
 }
 
@@ -594,12 +614,17 @@ fun ActionBox(
 @Composable
 private fun QuickSearchBody(vm: LauncherViewModel) {
     val q = vm.actionQuery
+    val plus = CustomBang.parsePlus(q)
+    if (plus != null) {
+        BangPlusBody(vm, plus)
+        return
+    }
     val complete = vm.autocompleteFor(q)
     val inside = vm.matchingSearchable(q)
     val launch = vm.matchingLaunchApps(q)
 
     val answer = vm.instantAnswer?.takeIf {
-        !it.fromDuckDuckGo || vm.appearanceSettings.instantAnswersEnabled
+        !it.fromDuckDuckGo || vm.appearanceSettings.instantAnswerCardsEnabled
     }
     if (answer != null) {
         val c = LocalMadTheme.current.colors
@@ -658,6 +683,92 @@ private fun QuickSearchBody(vm: LauncherViewModel) {
         }
     }
 
+    val mine = vm.matchingCustomBangs(q)
+    if (mine.isNotEmpty()) {
+        Text(stringResource(R.string.action_box_bang_add_title), color = LocalMadTheme.current.colors.muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp)
+        mine.forEach { bang ->
+            val query = q.trim().removePrefix("!").trim().substringAfter(' ', "").trim()
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(LocalMadTheme.current.colors.bg)
+                    .border(1.dp, LocalMadTheme.current.colors.border, RoundedCornerShape(12.dp))
+                    .clickable {
+                        if (query.isBlank()) vm.onQueryChange("!${bang.phrase} ")
+                        else vm.runCustomBang(bang, query)
+                    }
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("!${bang.phrase}", color = LocalMadTheme.current.colors.fg, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    if (bang.isLink) bang.searchUrl else bang.packageName,
+                    color = LocalMadTheme.current.colors.muted,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+
+    val catalogToken = q.trim().removePrefix("!").trim().substringBefore(' ').substringBefore('\t')
+    val catalog = if (!q.trim().startsWith("!") || q.trim().startsWith("!+") || catalogToken.isEmpty()) {
+        emptyList()
+    } else {
+        vm.matchingBangCatalog(catalogToken, 8)
+    }
+    if (catalog.isNotEmpty()) {
+        Text(stringResource(R.string.action_box_bang_catalog, vm.bangCatalogCount()), color = LocalMadTheme.current.colors.muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp)
+        catalog.forEach { entry ->
+            val query = q.trim().removePrefix("!").trim().substringAfter(' ', "").trim()
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(LocalMadTheme.current.colors.bg)
+                    .border(1.dp, LocalMadTheme.current.colors.border, RoundedCornerShape(12.dp))
+                    .clickable {
+                        if (query.isBlank()) vm.onQueryChange("!${entry.trigger} ")
+                        else vm.runCatalogBang(entry, query)
+                    }
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("!${entry.trigger}", color = LocalMadTheme.current.colors.fg, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.width(8.dp))
+                Text(entry.name, color = LocalMadTheme.current.colors.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+
+    val websites = vm.matchingWebBangs(q)
+    if (websites.isNotEmpty()) {
+        Text(stringResource(R.string.search_on_website), color = LocalMadTheme.current.colors.muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp)
+        websites.forEach { def ->
+            val query = q.trim().removePrefix("!").trim().substringAfter(' ', "").trim()
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(LocalMadTheme.current.colors.bg)
+                    .border(1.dp, LocalMadTheme.current.colors.border, RoundedCornerShape(12.dp))
+                    .clickable {
+                        if (query.isBlank()) vm.onQueryChange("!${def.keywords.first()} ")
+                        else vm.runWebBang(def, query)
+                    }
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Outlined.Language, contentDescription = null, tint = Color(def.color), modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(def.displayName, color = LocalMadTheme.current.colors.fg, fontSize = 13.sp)
+            }
+        }
+    }
+
     if (launch.isNotEmpty()) {
         Text(stringResource(R.string.apps_section), color = LocalMadTheme.current.colors.muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -682,6 +793,57 @@ private fun QuickSearchBody(vm: LauncherViewModel) {
         Icon(Icons.Outlined.Language, contentDescription = null, tint = LocalMadTheme.current.colors.muted, modifier = Modifier.size(16.dp))
         Spacer(Modifier.width(8.dp))
         Text(stringResource(R.string.search_web), color = LocalMadTheme.current.colors.fg, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+    }
+}
+
+@Composable
+private fun BangPlusBody(vm: LauncherViewModel, plus: PlusQuery) {
+    val c = LocalMadTheme.current.colors
+    val apps = if (plus.appWord.isBlank()) {
+        emptyList()
+    } else {
+        AppFuzzy.rank(plus.appWord, vm.apps, limit = 6, name = { it.label })
+    }
+    Text(
+        if (plus.appWord.isBlank()) {
+            stringResource(R.string.action_box_bang_plus_blank)
+        } else {
+            stringResource(R.string.action_box_bang_plus, plus.appWord)
+        },
+        color = c.muted,
+        fontSize = 12.sp,
+    )
+    apps.forEach { app ->
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(c.bg)
+                .border(1.dp, c.border, RoundedCornerShape(12.dp))
+                .clickable {
+                    if (plus.query.isBlank()) vm.onQueryChange("!+${app.label} ")
+                    else vm.runAdHocAppSearch(app, plus.query)
+                }
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            AppIcon(app.icon, app.label, 22.dp, 6.dp)
+            Spacer(Modifier.width(8.dp))
+            Text(app.label, color = c.fg, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(c.primary.copy(alpha = 0.12f))
+            .clickable { vm.startBangFromPlus(plus.appWord) }
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Outlined.Add, contentDescription = null, tint = c.primary, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(stringResource(R.string.action_box_bang_open_settings), color = c.fg, fontSize = 13.sp)
     }
 }
 
@@ -716,7 +878,11 @@ private fun SearchLaunchAppChip(vm: LauncherViewModel, app: LaunchableApp) {
 }
 
 @Composable
-private fun CalcResultCard(result: CalcResult, ddg: InstantAnswer? = null) {
+private fun CalcResultCard(
+    result: CalcResult,
+    ddg: InstantAnswer? = null,
+    onEquals: () -> Unit = {},
+) {
     val c = LocalMadTheme.current.colors
     val answer = ddg?.text?.ifBlank { null } ?: result.answer
     val label = if (ddg != null) InstantAnswerClient.DDG_ATTRIBUTION
@@ -753,12 +919,76 @@ private fun CalcResultCard(result: CalcResult, ddg: InstantAnswer? = null) {
                 Text(line, color = c.primary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
             }
         }
-        Text(
-            stringResource(R.string.calc_enter_copy),
-            color = c.muted,
-            fontSize = 11.sp,
-            modifier = Modifier.padding(top = 4.dp),
-        )
+        Row(
+            modifier = Modifier
+                .padding(top = 6.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(c.primary.copy(alpha = 0.22f))
+                .clickable(onClick = onEquals)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "=",
+                color = c.fg,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                stringResource(R.string.calc_tap_equals),
+                color = c.muted,
+                fontSize = 12.sp,
+            )
+        }
+    }
+}
+
+@Composable
+private fun CalcKeypad(onKey: (String) -> Unit) {
+    val c = LocalMadTheme.current.colors
+    val rows = listOf(
+        listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0"),
+        listOf("+", "−", "×", "÷", "(", ")", ".", "%", "^"),
+        listOf("⌫", "="),
+    )
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        rows.forEach { row ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                row.forEach { token ->
+                    val equals = token == "="
+                    val back = token == "⌫"
+                    Box(
+                        modifier = Modifier
+                            .weight(if (equals) 3f else 1f)
+                            .height(42.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(
+                                when {
+                                    equals -> c.primary.copy(alpha = 0.38f)
+                                    back -> c.secondary.copy(alpha = 0.55f)
+                                    else -> c.secondary.copy(alpha = 0.45f)
+                                },
+                            )
+                            .clickable { onKey(token) },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            token,
+                            color = c.fg,
+                            fontSize = if (equals || back) 20.sp else 16.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -782,6 +1012,7 @@ private fun ComposeBanner(vm: LauncherViewModel) {
             vm.composeKind == ActionAppKind.Contacts -> stringResource(R.string.help_add_contact_label)
             vm.composeKind == ActionAppKind.Ai -> stringResource(R.string.ai_compose_banner)
             vm.composeKind == ActionAppKind.Nav -> stringResource(R.string.nav_compose_banner)
+            vm.calcMode -> stringResource(R.string.calc_compose_banner)
             vm.composeContact != null && vm.contactLookupActive ->
                 stringResource(R.string.contact_lookup_pick_app, vm.composeContact!!.name)
             vm.contactLookupActive -> stringResource(R.string.contact_lookup_banner)
@@ -1276,6 +1507,7 @@ private fun placeholder(vm: LauncherViewModel, cmd: ActionCommand): String {
     if (vm.composeKind == ActionAppKind.Notes) return stringResource(R.string.placeholder_note_body)
     if (vm.composeKind == ActionAppKind.Ai) return stringResource(R.string.placeholder_ask_ai)
     if (vm.composeKind == ActionAppKind.Nav) return stringResource(R.string.placeholder_navigate_place)
+    if (vm.calcMode) return stringResource(R.string.placeholder_calc)
     if (vm.composeKind == ActionAppKind.Social) return stringResource(R.string.placeholder_whats_on_mind)
     if (vm.composeContact != null && vm.composeApp == null) {
         return stringResource(R.string.placeholder_pick_action_app)
@@ -1307,7 +1539,7 @@ private fun placeholder(vm: LauncherViewModel, cmd: ActionCommand): String {
                 stringResource(R.string.placeholder_message_contact, cmd.contactName.ifBlank { cmd.contactPhone })
             else -> stringResource(R.string.placeholder_search_contacts)
         }
-        is ActionCommand.AddUserCommand -> stringResource(R.string.placeholder_add_command)
+        is ActionCommand.AddUserCommand -> stringResource(R.string.placeholder_add_command_pick)
         is ActionCommand.Emergency -> stringResource(R.string.placeholder_emergency)
         is ActionCommand.UpdateApps -> stringResource(R.string.placeholder_update_apps)
         is ActionCommand.BarrelRoll -> stringResource(R.string.placeholder_search_command)
@@ -1316,144 +1548,44 @@ private fun placeholder(vm: LauncherViewModel, cmd: ActionCommand): String {
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun AddCommandFromPill(vm: LauncherViewModel, phrase: String) {
     val c = LocalMadTheme.current.colors
-    var kind by remember { mutableStateOf(UserShortcutKind.OPEN_APP) }
-    var combo by remember { mutableStateOf(UserShortcutCombo.CHAT) }
-    var pickedPkg by remember { mutableStateOf<String?>(null) }
-    var appQuery by remember { mutableStateOf("") }
-    val wordsReady = phrase.isNotBlank()
-    if (!wordsReady) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
-            stringResource(R.string.placeholder_add_command),
+            stringResource(R.string.action_box_plus_pick_kind),
             color = c.muted,
             fontSize = 13.sp,
         )
-        return
+        if (phrase.isNotBlank()) {
+            Text(phrase, color = c.accent, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+        }
+        PlusKindRow(
+            label = stringResource(R.string.action_box_shortcut_kind_app),
+            sublabel = stringResource(R.string.action_box_plus_open_app_sub),
+            onClick = { vm.startYourCommandFromPlus(UserShortcutKind.OPEN_APP, phrase) },
+        )
+        PlusKindRow(
+            label = stringResource(R.string.action_box_shortcut_kind_combo),
+            sublabel = stringResource(R.string.action_box_plus_combo_sub),
+            onClick = { vm.startYourCommandFromPlus(UserShortcutKind.COMBO, phrase) },
+        )
     }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            stringResource(R.string.action_box_add_command),
-            color = c.fg,
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 13.sp,
-        )
-        Text(phrase, color = c.accent, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            val openOn = kind == UserShortcutKind.OPEN_APP
-            Text(
-                stringResource(R.string.action_box_shortcut_kind_app),
-                color = if (openOn) c.fg else c.muted,
-                fontSize = 12.sp,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(if (openOn) c.primary.copy(alpha = 0.35f) else c.bg)
-                    .clickable {
-                        kind = UserShortcutKind.OPEN_APP
-                        pickedPkg = null
-                    }
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
-            )
-            UserShortcutCombo.entries.forEach { value ->
-                val on = kind == UserShortcutKind.COMBO && combo == value
-                val label = when (value) {
-                    UserShortcutCombo.CHAT -> stringResource(R.string.action_box_combo_at)
-                    UserShortcutCombo.SOCIAL -> stringResource(R.string.action_box_combo_social)
-                    UserShortcutCombo.CALL -> stringResource(R.string.action_box_combo_call)
-                    UserShortcutCombo.VIDEO -> stringResource(R.string.action_box_combo_video)
-                }
-                Text(
-                    label,
-                    color = if (on) c.fg else c.muted,
-                    fontSize = 12.sp,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(if (on) c.primary.copy(alpha = 0.35f) else c.bg)
-                        .clickable {
-                            kind = UserShortcutKind.COMBO
-                            combo = value
-                            pickedPkg = null
-                        }
-                        .padding(horizontal = 10.dp, vertical = 8.dp),
-                )
-            }
-        }
-        val comboApps = if (kind == UserShortcutKind.COMBO) vm.comboAppsFor(combo) else emptyList()
-        val launchable = if (kind == UserShortcutKind.OPEN_APP) {
-            if (appQuery.isBlank()) vm.apps.sortedBy { it.label.lowercase() }.take(16)
-            else AppFuzzy.rank(appQuery, vm.apps, limit = 16, name = { it.label })
-        } else emptyList()
-        val comboRanked = if (kind == UserShortcutKind.COMBO) {
-            if (appQuery.isBlank()) comboApps.take(16)
-            else AppFuzzy.rank(appQuery, comboApps, limit = 16, name = { it.name })
-        } else emptyList()
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(max = 180.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            if (kind == UserShortcutKind.OPEN_APP) {
-                launchable.forEach { app ->
-                    val on = app.packageName == pickedPkg
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (on) c.primary.copy(alpha = 0.2f) else c.bg)
-                            .clickable { pickedPkg = app.packageName }
-                            .padding(horizontal = 8.dp, vertical = 6.dp),
-                    ) {
-                        AppIcon(app.icon, app.label, 22.dp, 6.dp)
-                        Text(app.label, color = c.fg, fontSize = 13.sp, modifier = Modifier.padding(start = 8.dp))
-                    }
-                }
-            } else {
-                comboRanked.forEach { app ->
-                    val on = app.packageName == pickedPkg
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (on) c.primary.copy(alpha = 0.2f) else c.bg)
-                            .clickable { pickedPkg = app.packageName }
-                            .padding(horizontal = 8.dp, vertical = 6.dp),
-                    ) {
-                        AppIcon(app.icon, app.name, 22.dp, 6.dp)
-                        Text(app.name, color = c.fg, fontSize = 13.sp, modifier = Modifier.padding(start = 8.dp))
-                    }
-                }
-            }
-        }
-        val savedMsg = stringResource(R.string.action_box_command_added, phrase)
-        ActionCta(
-            label = stringResource(R.string.action_box_save_command),
-            sublabel = phrase,
-            color = c.primary,
-            enabled = pickedPkg != null,
-            onClick = {
-                val err = vm.addUserShortcut(
-                    phrases = listOf(phrase),
-                    packageName = pickedPkg.orEmpty(),
-                    kind = kind,
-                    combo = if (kind == UserShortcutKind.COMBO) combo else null,
-                    contact = null,
-                )
-                if (err != null) {
-                    vm.showToast(err)
-                } else {
-                    vm.showToast(savedMsg)
-                    vm.onQueryChange("")
-                }
-            },
-        )
+}
+
+@Composable
+private fun PlusKindRow(label: String, sublabel: String, onClick: () -> Unit) {
+    val c = LocalMadTheme.current.colors
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(c.bg)
+            .border(1.dp, c.border, RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+    ) {
+        Text(label, color = c.fg, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Text(sublabel, color = c.muted, fontSize = 12.sp)
     }
 }

@@ -127,6 +127,7 @@ class InstantModulesTest {
         assertFalse(InstantAnswerClient.shouldFetchWeb("capital of france", enabled = false))
         assertTrue(InstantAnswerClient.shouldFetchWeb("capital of france", enabled = true))
         assertFalse(InstantAnswerClient.shouldFetchWeb("ab", enabled = true))
+        assertFalse(InstantAnswerClient.shouldFetchWeb("capital of france", enabled = true, duckDuckGo = false))
         assertNull(InstantModules.localAnswer("capital of france"))
         val local = InstantModules.localAnswer("2+2")
         assertEquals("4", local!!.text)

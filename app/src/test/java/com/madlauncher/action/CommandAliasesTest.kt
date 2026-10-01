@@ -61,6 +61,17 @@ class CommandAliasesTest {
     }
 
     @Test
+    fun calcCommit_calcAndCalculate() {
+        assertTrue(CommandAliases.isCalcCommit("calc "))
+        assertTrue(CommandAliases.isCalcCommit("Calc "))
+        assertTrue(CommandAliases.isCalcCommit("calculate "))
+        assertTrue(CommandAliases.isCalcCommit("calculator "))
+        org.junit.Assert.assertFalse(CommandAliases.isCalcCommit("calc"))
+        org.junit.Assert.assertFalse(CommandAliases.isCalcCommit("calc 2+2"))
+        org.junit.Assert.assertFalse(CommandAliases.isCalcCommit("calculate 10"))
+    }
+
+    @Test
     fun navCommit_slashGAndGo() {
         assertTrue(CommandAliases.isNavCommit("/g "))
         assertTrue(CommandAliases.isNavCommit("/G "))

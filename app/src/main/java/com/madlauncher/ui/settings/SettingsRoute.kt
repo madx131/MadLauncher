@@ -15,6 +15,7 @@ enum class SettingsRoute {
     EXPERIMENTAL,
     NOT_WORKING,
     SHARE_APK,
+    ABOUT,
 }
 
 enum class CommandEditId {

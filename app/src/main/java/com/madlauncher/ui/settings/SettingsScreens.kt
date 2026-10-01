@@ -139,6 +139,7 @@ fun SettingsOverlay(
         SettingsRoute.EXPERIMENTAL -> stringResource(R.string.settings_route_experimental)
         SettingsRoute.NOT_WORKING -> stringResource(R.string.settings_route_not_working)
         SettingsRoute.SHARE_APK -> stringResource(R.string.settings_route_share_apk)
+        SettingsRoute.ABOUT -> stringResource(R.string.settings_route_about)
     }
     Box(
         modifier = modifier
@@ -194,6 +195,7 @@ fun SettingsOverlay(
                             SettingsRoute.EXPERIMENTAL -> ExperimentalPage(vm)
                             SettingsRoute.NOT_WORKING -> NotWorkingPage(vm)
                             SettingsRoute.SHARE_APK -> ShareApkPage(vm)
+                            SettingsRoute.ABOUT -> AboutPage()
                             SettingsRoute.ACTION_BOX_COMMANDS,
                             SettingsRoute.ACTION_BOX_COMMAND_EDIT -> Unit
                         }
@@ -240,6 +242,9 @@ private fun SettingsHub(vm: LauncherViewModel) {
         HubRow(stringResource(R.string.settings_route_extras), stringResource(R.string.extras_hub_subtitle)) {
             vm.openSettingsRoute(SettingsRoute.EXTRAS)
         }
+        HubRow(stringResource(R.string.settings_route_about), stringResource(R.string.about_actionbox_sub)) {
+            vm.openAbout(SettingsRoute.HUB)
+        }
         return
     }
     HubRow(stringResource(R.string.settings_route_themes), stringResource(R.string.settings_hub_themes_subtitle)) { vm.openSettingsRoute(SettingsRoute.THEMES) }
@@ -249,6 +254,9 @@ private fun SettingsHub(vm: LauncherViewModel) {
     HubRow(stringResource(R.string.settings_route_edit_docks), stringResource(R.string.settings_hub_docks_subtitle)) { vm.openSettingsRoute(SettingsRoute.EDIT_DOCKS) }
     HubRow(stringResource(R.string.settings_route_permissions), stringResource(R.string.settings_hub_permissions_subtitle)) { vm.openSettingsRoute(SettingsRoute.PERMISSIONS) }
     HubRow(stringResource(R.string.settings_route_extras), stringResource(R.string.extras_hub_subtitle)) { vm.openSettingsRoute(SettingsRoute.EXTRAS) }
+    HubRow(stringResource(R.string.settings_route_about), stringResource(R.string.about_hub_sub)) {
+        vm.openAbout(SettingsRoute.HUB)
+    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -1319,7 +1327,7 @@ private fun HubRow(title: String, subtitle: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun SectionLabel(text: String) {
+internal fun SectionLabel(text: String) {
     Text(text.uppercase(), color = LocalMadTheme.current.colors.muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
 }
 

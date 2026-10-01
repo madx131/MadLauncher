@@ -23,11 +23,16 @@ object HomeDropHit {
     ): String? {
         val hits = rects.mapNotNull { (key, rect) ->
             val parsed = parseKey(key) ?: return@mapNotNull null
+            if (parsed.first != preferredPage) return@mapNotNull null
             if (!validCell(parsed.first, parsed.second, parsed.third)) return@mapNotNull null
             if (!contains(rect.left, rect.top, rect.right, rect.bottom, x, y)) return@mapNotNull null
-            key to area(rect.left, rect.top, rect.right, rect.bottom)
+            val cx = (rect.left + rect.right) / 2f
+            val cy = (rect.top + rect.bottom) / 2f
+            val dx = cx - x
+            val dy = cy - y
+            key to (dx * dx + dy * dy)
         }
-        return choose(hits, preferredPage)
+        return hits.minByOrNull { it.second }?.first
     }
 
     fun pagePrefix(pageIndex: Int): String = "$pageIndex:"
@@ -35,7 +40,7 @@ object HomeDropHit {
     internal fun choose(hits: List<Pair<String, Float>>, preferredPage: Int): String? {
         if (hits.isEmpty()) return null
         val prefix = pagePrefix(preferredPage)
-        val pool = hits.filter { it.first.startsWith(prefix) }.ifEmpty { hits }
+        val pool = hits.filter { it.first.startsWith(prefix) }
         return pool.minByOrNull { it.second }?.first
     }
 
@@ -55,8 +60,21 @@ object HomeDropHit {
             y < bottom
     }
 
-    private fun area(left: Float, top: Float, right: Float, bottom: Float): Float {
-        val a = (right - left) * (bottom - top)
-        return if (a <= 0f) Float.MAX_VALUE else a
+    /** True when the point sits in the inner [inner] fraction of the cell (folder-merge). */
+    fun centeredIn(
+        left: Float,
+        top: Float,
+        right: Float,
+        bottom: Float,
+        x: Float,
+        y: Float,
+        inner: Float = 0.5f,
+    ): Boolean {
+        val w = right - left
+        val h = bottom - top
+        if (w <= 0f || h <= 0f) return false
+        val insetX = w * (1f - inner.coerceIn(0.15f, 1f)) / 2f
+        val insetY = h * (1f - inner.coerceIn(0.15f, 1f)) / 2f
+        return contains(left + insetX, top + insetY, right - insetX, bottom - insetY, x, y)
     }
 }

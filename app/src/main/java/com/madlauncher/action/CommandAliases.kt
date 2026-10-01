@@ -16,6 +16,7 @@ object CommandAliases {
     val addContact = listOf("/a", "add contact")
     val updateApps = listOf("update", "updates", "update apps", "/u")
     val reminder = listOf("/r", "remind", "reminder")
+    val calc = listOf("calc", "calculate", "calculator")
     val systemSettings = listOf("/ss")
     val launcherSettings = listOf("/ls")
     val actionBoxSettings = listOf("/abs")
@@ -107,7 +108,7 @@ object CommandAliases {
             return null
         }
         val q = trimmed.lowercase()
-        val hit = (phraseIndex().map { it.first } + UserShortcuts.allPhrases())
+        val hit = (phraseIndex().map { it.first } + UserShortcuts.allPhrases() + calc)
             .sortedByDescending { it.length }
             .firstOrNull { it.lowercase().startsWith(q) && it.length > q.length && !it.startsWith("/") }
             ?: return null
@@ -126,6 +127,13 @@ object CommandAliases {
     /** `/g ` or `go ` — clear field for a destination. */
     fun isNavCommit(query: String): Boolean = isBodyCommit(query, AliasTarget.Nav) ||
         slashCommit(query, "/g")
+
+    /** `calc ` / `calculate ` — switch Action Box to the calculator keypad. */
+    fun isCalcCommit(query: String): Boolean {
+        if (query.isEmpty() || !query.last().isWhitespace()) return false
+        val trimmed = query.trimEnd().lowercase()
+        return calc.any { it.equals(trimmed, ignoreCase = true) }
+    }
 
     /** `/n ` — clear field for note body. */
     fun isNotesCommit(query: String): Boolean = isBodyCommit(query, AliasTarget.Notes) ||

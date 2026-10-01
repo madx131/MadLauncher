@@ -28,7 +28,8 @@
     <string name="action_box_commands_hub_sub">Commands, search engine, and instant answers</string>
     <string name="action_box_search_engine">Search engine</string>
     <string name="action_box_instant_answers">Instant answers</string>
-    <string name="action_box_instant_answers_sub">Quick answers from the web</string>
+    <string name="action_box_instant_answers_sub">DuckDuckGo Instant Answer cards. Off = on-device calc/conversions only.</string>
+    <string name="action_box_instant_answers_ddg_only">Instant answers only work with DuckDuckGo. They are turned off so they are not mistaken for another search engine\'s results.</string>
     <string name="action_box_search_engine_duckduckgo">DuckDuckGo</string>
     <string name="action_box_search_engine_google">Google</string>
     <string name="action_box_search_engine_bing">Bing</string>
@@ -40,11 +41,27 @@
     <string name="action_box_command_at_sub">Messaging and email apps, plus words like msg and email</string>
     <string name="action_box_command_apps_words_sub">Apps on this command and language shortcuts</string>
     <string name="action_box_command_words_only_sub">Language shortcuts — tap × to remove even the built-in ones</string>
-    <string name="action_box_command_search_sub">Apps with a real in-app search box</string>
+    <string name="action_box_command_search_sub">Built-in sites, plus your own ! words</string>
     <string name="action_box_command_help_sub">/h shortcut. Command help menu is under ActionBox Settings</string>
-    <string name="action_box_command_update_sub">Opens GetApps or Play Store so you can Update all</string>
+    <string name="action_box_command_update_sub">/u, update, or updates. Opens GetApps or Play Store so you can Update all</string>
     <string name="action_box_update_edit_hint">Opens the store updates list. Android cannot update every app from MAD without opening the store.</string>
-    <string name="action_box_search_edit_hint">: only lists apps that expose in-app search (Calendar, YouTube, and similar). Apps without a search box stay out.</string>
+    <string name="action_box_search_edit_hint">! uses the app when it is installed, otherwise the website. Add your own word below — an app, or a pasted search link.</string>
+    <string name="action_box_bang_add_title">Your ! commands</string>
+    <string name="action_box_bang_add_hint">Type !+app in the Action Box to search any app. Save a word here for an app or a link that ends with search= or q=.</string>
+    <string name="action_box_bang_word">Word</string>
+    <string name="action_box_bang_word_hint">urban</string>
+    <string name="action_box_bang_app">App</string>
+    <string name="action_box_bang_link">Search link</string>
+    <string name="action_box_bang_save">Save ! command</string>
+    <string name="action_box_bang_filter_app">Find an app</string>
+    <string name="action_box_bang_link_hint">https://example.com/search?q=</string>
+    <string name="action_box_bang_saved">Saved !%1$s</string>
+    <string name="action_box_bang_need_word">Type a single word, like urban</string>
+    <string name="action_box_bang_need_target">Pick an app or paste a search link</string>
+    <string name="action_box_bang_plus">Search an app, or save !%1$s</string>
+    <string name="action_box_bang_plus_blank">Type an app after !+  (for example !+YouTube cats)</string>
+    <string name="action_box_bang_open_settings">Save this as a ! command</string>
+    <string name="action_box_bang_builtin">Built-in searchable apps</string>
     <string name="action_box_search_none">No searchable apps found on this phone.</string>
     <string name="action_box_remove_builtin_hint">Tap × to remove a word, including built-in English shortcuts like msg or /h.</string>
     <string name="action_box_edit_command">Edit this command</string>
@@ -67,14 +84,14 @@
     <string name="action_box_combo_contact_none">Ask each time</string>
     <string name="action_box_combo_contact_hint">Search a saved contact</string>
     <string name="action_box_combo_at">@  Message</string>
-    <string name="action_box_combo_social">!  Social</string>
+    <string name="action_box_combo_social">:  Social</string>
     <string name="action_box_combo_call">#  Call</string>
     <string name="action_box_combo_video">*  Video</string>
     <string name="action_box_combo_opens_chat">%1$s chat with %2$s</string>
     <string name="action_box_combo_opens_social">Open %1$s composer</string>
     <string name="action_box_combo_opens_call">Call %2$s via %1$s</string>
     <string name="action_box_combo_pick_contact">Pick a contact in %1$s</string>
-    <string name="action_box_shortcut_pick_combo">Pick @, !, #, or *</string>
+    <string name="action_box_shortcut_pick_combo">Pick @, :, #, or *</string>
     <string name="action_box_shortcut_pick_combo_app">Pick an app for this combo</string>
     <string name="action_box_save_command">Save command</string>
     <string name="action_box_search_apps">Search apps</string>
@@ -96,7 +113,7 @@
     <string name="action_box_default_app">Default</string>
     <string name="action_box_kind_message">@  Message</string>
     <string name="action_box_kind_email">Email apps</string>
-    <string name="action_box_kind_social">!  Social</string>
+    <string name="action_box_kind_social">:  Social</string>
     <string name="action_box_kind_call">#  Call</string>
     <string name="action_box_kind_video">*  Video call</string>
     <string name="action_box_kind_go">/g  Go</string>
@@ -105,7 +122,7 @@
     <string name="action_box_kind_ai">\?  Ask AI</string>
     <string name="action_box_kind_sticky">/s  Sticky</string>
     <string name="action_box_kind_help">/h  Help</string>
-    <string name="action_box_kind_update">update</string>
+    <string name="action_box_kind_update">/u  Update</string>
     <string name="action_box_kind_contact">&amp;  Contact</string>
     <string name="action_box_kind_add_contact">/a  Add contact</string>
     <string name="action_box_kind_reminder">/r  Reminder</string>
@@ -117,7 +134,7 @@
     <string name="action_box_kind_abs">/abs  ActionBox Settings</string>
     <string name="action_box_command_abs_sub">Your commands, built-in words, app lists, and permissions.</string>
     <string name="action_box_kind_contacts_apps">/a  Add contact</string>
-    <string name="action_box_kind_search">:  Search in app</string>
+    <string name="action_box_kind_search">!  Site and app search</string>
     <string name="action_box_pill_colors">ActionBox pill</string>
     <string name="action_box_pill_color">Pill color</string>
     <string name="action_box_pill_color_sub">Background of the dock pill and field</string>
@@ -148,13 +165,18 @@
     <string name="help_custom_opens">Opens %1$s</string>
     <string name="help_add_command_label">Add a command</string>
     <string name="help_add_command_desc">Type + then a word in Action Box, pick an app or a combo (@ / ! / # / *). Also under ActionBox Settings → Your commands.</string>
-    <string name="placeholder_add_command">+ then a word, then pick an app</string>
+    <string name="placeholder_add_command">+ then pick Open app or Quick combo</string>
+    <string name="placeholder_add_command_pick">+ pick Open app or Quick combo</string>
+    <string name="action_box_plus_pick_kind">What kind of command?</string>
+    <string name="action_box_plus_open_app_sub">Opens an app when you type your word</string>
+    <string name="action_box_plus_combo_sub">Runs @, !, #, or * with an app and optional contact</string>
     <string name="action_box_command_added">Saved %1$s</string>
     <string name="settings_route_edit_docks">Edit dock/s</string>
     <string name="settings_route_extras">Extras</string>
     <string name="settings_hub_docks_subtitle">Height, icons, auto-hide, Action box and Apps buttons</string>
     <string name="extras_language_follows_system">Action box uses the phone language for menus and command help.</string>
     <string name="search_inside_app">SEARCH INSIDE APP</string>
+    <string name="search_on_website">WEBSITE</string>
     <string name="apps_section">APPS</string>
     <string name="search_web">Search web</string>
     <string name="instant_answer">Quick answer</string>
@@ -257,8 +279,10 @@
     <string name="placeholder_calc">Try 2+2, 32f, 10kg, or 30psi…</string>
     <string name="calc_result_label">RESULT</string>
     <string name="calc_enter_copy">Type = to keep calculating</string>
+    <string name="calc_tap_equals">Keep calculating</string>
+    <string name="calc_compose_banner">Calculator — use this keypad so = stays on numbers</string>
     <string name="help_calc_label">Calculator &amp; converter</string>
-    <string name="help_calc_desc">Math (2+2, 12*5). Temp 32f / 100c. Weight 10kg / 5lb. Pressure 30psi / 2bar.</string>
+    <string name="help_calc_desc">Type calc then space for the keypad. Math (2+2, 12*5). Temp 32f / 100c. Weight 10kg / 5lb. Pressure 30psi / 2bar.</string>
     <string name="type_reminded_of">What do you want to be reminded of?</string>
 
     <!-- HomeDesktop -->
@@ -387,11 +411,11 @@
     <!-- HelpPanel -->
     <string name="help_title">Action Box — Commands</string>
     <string name="help_at_label">Message or email via app</string>
-    <string name="help_app_search_label">Search inside an app</string>
-    <string name="help_app_search_desc">Type : then an app alias (e.g. :yt). Only apps with in-app search.</string>
+    <string name="help_app_search_label">Search a site</string>
+    <string name="help_app_search_desc">Type ! then a site (e.g. !yt cats, !w paris). !+YouTube cats searches any app. Save your own !word under ! settings — an app, or a search= link.</string>
     <string name="help_at_desc">Pick a messaging or email app, then a contact — Action box opens that chat ready to type. Aliases: txt, text, msg, message, mail, email, send.</string>
     <string name="help_social_label">Post to social</string>
-    <string name="help_social_desc">Pick an installed social app (including Facebook) — Action box opens the composer. No auto-post.</string>
+    <string name="help_social_desc">Type : then pick an installed social app (including Facebook). Action box opens the composer. No auto-post.</string>
     <string name="help_contact_lookup_label">Find contact (&amp;)</string>
     <string name="help_contact_lookup_desc">Type &amp; then a name (or &amp; then Space) — pick the person, then choose an app to message or call them. Also works with the word “contact”.</string>
     <string name="help_group_label">Ask AI assistant</string>
@@ -442,7 +466,7 @@
     <string name="help_emergency_label">Emergency</string>
     <string name="help_emergency_desc">Confirm, then open the dialer for 911.</string>
     <string name="help_update_label">Update apps</string>
-    <string name="help_update_desc">Opens GetApps or Play Store on the updates list. Tap Update all there — MAD cannot install updates in the background.</string>
+    <string name="help_update_desc">Type /u, update, or updates. Opens GetApps or Play Store on the updates list. Tap Update all there — MAD cannot install updates in the background.</string>
     <string name="help_nav_label">Navigate</string>
     <string name="help_nav_desc">Type /g or go then Space — the field clears for a place. nav, navigate, and go to still work. Pick Maps or Waze if installed.</string>
 
@@ -477,7 +501,7 @@
     <!-- LauncherSettingsContent / LauncherSettingsPanel -->
     <string name="settings_messaging_section">Messaging (@)</string>
     <string name="settings_email_section">Email apps</string>
-    <string name="settings_social_section">Social (!)</string>
+    <string name="settings_social_section">Social (:)</string>
     <string name="settings_navigation_section">Navigation</string>
     <string name="settings_none_installed">None installed</string>
     <string name="settings_preferred">Preferred</string>
@@ -490,6 +514,26 @@
 
     <!-- SettingsScreens -->
     <string name="settings_route_hub">Launcher settings</string>
+    <string name="settings_route_about">About</string>
+    <string name="about_hub_sub">This build, DuckDuckGo, and the libraries it uses</string>
+    <string name="about_actionbox_sub">This Action Box build, DuckDuckGo, and the libraries it uses</string>
+    <string name="about_build_heading">This build</string>
+    <string name="about_build_body">%4$s %1$s (build %2$d). Package %3$s. %5$s.</string>
+    <string name="about_build_kind_launcher">MAD Launcher</string>
+    <string name="about_build_kind_actionbox">MAD Action Box</string>
+    <string name="about_build_debug">Debug build</string>
+    <string name="about_build_release">Release build</string>
+    <string name="about_build_explain">Instant answers and the ! site list come from DuckDuckGo. A ! search opens that site on this phone.</string>
+    <string name="about_ddg_heading">Powered by DuckDuckGo</string>
+    <string name="about_ddg_body">Instant answers and the public ! shortcuts are from DuckDuckGo. Their browser is a separate app.</string>
+    <string name="about_ddg_play">Get DuckDuckGo Browser on Google Play</string>
+    <string name="about_ddg_store">Get DuckDuckGo Browser from this phone\'s app store</string>
+    <string name="about_credits_heading">Modules from GitHub</string>
+    <string name="about_credits_body">These are the libraries compiled into this build. The name opens the developers\' GitHub page. The address opens the project.</string>
+    <string name="about_credit_license">License: %1$s</string>
+    <string name="action_box_bang_catalog">All ! shortcuts (%1$d)</string>
+    <string name="action_box_bang_catalog_hint">The public ! list. Type a shortcut or a site name. A search opens that site directly.</string>
+    <string name="action_box_bang_catalog_filter">Filter shortcuts</string>
     <string name="settings_route_themes">Themes</string>
     <string name="settings_route_icons">Icons</string>
     <string name="settings_route_gestures">Gestures</string>

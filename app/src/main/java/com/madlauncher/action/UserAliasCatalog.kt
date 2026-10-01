@@ -49,7 +49,7 @@ enum class AliasTarget {
         get() = when (this) {
             Chat -> "@  Message"
             Email -> "@  Message"
-            Social -> "!  Social"
+            Social -> ":  Social"
             Call -> "#  Call"
             Video -> "*  Video call"
             Translate -> "Translate"
@@ -61,7 +61,7 @@ enum class AliasTarget {
             Reminder -> "/r  Reminder"
             Help -> "/h  Help"
             AddContact -> "/a  Add contact"
-            UpdateApps -> "update"
+            UpdateApps -> "/u  Update"
             SystemSettings -> "/ss  System settings"
             LauncherSettings -> "/ls  Launcher settings"
             ActionBoxSettings -> "/abs  ActionBox Settings"

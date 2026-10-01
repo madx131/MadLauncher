@@ -83,6 +83,30 @@ class AppearanceContractsTest {
         assertEquals(true, AppearanceSettings.fromJson(null).instantAnswersEnabled)
         assertEquals(true, AppearanceSettings.fromJson("").instantAnswersEnabled)
         assertEquals(false, AppearanceSettings(instantAnswersEnabled = false).instantAnswersEnabled)
+        assertEquals(true, AppearanceSettings().instantAnswerCardsEnabled)
+        assertEquals(
+            false,
+            AppearanceSettings(webSearchEngine = WebSearchEngine.GOOGLE).instantAnswerCardsEnabled,
+        )
+    }
+
+    @Test
+    fun instantAnswersOffWhenStoredEngineIsNotDuckDuckGo() {
+        val google = AppearanceSettings(
+            webSearchEngine = WebSearchEngine.GOOGLE,
+            instantAnswersEnabled = true,
+        )
+        assertEquals(false, google.instantAnswerCardsEnabled)
+        val bing = AppearanceSettings(
+            webSearchEngine = WebSearchEngine.BING,
+            instantAnswersEnabled = true,
+        )
+        assertEquals(false, bing.instantAnswerCardsEnabled)
+        val ddgOff = AppearanceSettings(
+            webSearchEngine = WebSearchEngine.DUCKDUCKGO,
+            instantAnswersEnabled = false,
+        )
+        assertEquals(false, ddgOff.instantAnswerCardsEnabled)
     }
 
     @Test
