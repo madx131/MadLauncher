@@ -41,8 +41,8 @@ object DefaultCommandApps {
 
     /**
      * Hidden packages are omitted (including a hidden system default).
-     * [order] is the user list from ActionBox Settings; [pinDefault] keeps the
-     * system default first in pickers even if it was dragged elsewhere in the editor.
+     * [order] is the user list from ActionBox Settings. [pinDefault] pins the
+     * system default first; Action Box pickers pass false so drag order is used.
      */
     fun arrange(
         apps: List<InstalledActionApp>,

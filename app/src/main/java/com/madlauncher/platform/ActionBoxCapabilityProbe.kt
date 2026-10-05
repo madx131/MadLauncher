@@ -96,10 +96,7 @@ object ActionBoxCapabilityProbe {
             else -> FeatureStatus.DEGRADED // deep links remain unreliable
         }
 
-        caps[PlatformFeature.ACTIONBOX_TRANSLATE] = when {
-            translators.isEmpty() -> FeatureStatus.NOT_INSTALLED
-            else -> FeatureStatus.WORKING
-        }
+        caps[PlatformFeature.ACTIONBOX_TRANSLATE] = FeatureStatus.WORKING
 
         caps[PlatformFeature.ACTIONBOX_NOTES] = when {
             notes.isEmpty() -> FeatureStatus.NOT_INSTALLED

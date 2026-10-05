@@ -168,12 +168,6 @@ object SearchableApps {
             listOf("com.github.android"),
         ) { q -> "https://github.com/search?q=${enc(q)}" },
         SearchableAppDef(
-            "Google Maps", "Maps",
-            listOf("gmaps", "gmap", "maps", "map"),
-            0xFF4285F4,
-            listOf("com.google.android.apps.maps"),
-        ) { q -> "https://www.google.com/maps/search/${enc(q)}" },
-        SearchableAppDef(
             appName = "Calendar",
             displayName = "Calendar",
             keywords = listOf("cal", "calendar", "agenda"),
@@ -187,11 +181,16 @@ object SearchableApps {
             searchUrl = { _ -> "" },
         ),
         SearchableAppDef(
-            "Play Store", "Play Store",
-            listOf("play", "store", "playstore"),
-            0xFF34A853,
-            listOf("com.android.vending"),
-        ) { q -> "https://play.google.com/store/search?q=${enc(q)}" },
+            appName = "Play Store",
+            displayName = "Play Store",
+            keywords = listOf("p", "play", "playstore"),
+            color = 0xFF34A853,
+            packages = listOf("com.android.vending"),
+            altSearchUrls = { q ->
+                listOf("https://play.google.com/store/search?q=${enc(q)}&c=apps")
+            },
+            searchUrl = { q -> "market://search?q=${enc(q)}" },
+        ),
         SearchableAppDef(
             appName = "Aurora Store",
             displayName = "Aurora",
@@ -383,8 +382,8 @@ object SearchableApps {
     }
 
     /**
-     * `!ud yeet` / `!w paris` when that app is not installed.
-     * Opens the site search URL instead.
+     * `!ud yeet` / `!yt cats` — always the website, even if the app is installed.
+     * In-app search is Space on a common app, not `!`.
      */
     fun parseWebBang(
         query: String,
@@ -412,18 +411,12 @@ object SearchableApps {
         return matched.first to q
     }
 
-    /** Catalog and web-only sites that are not installed, for `!` suggestions. */
-    fun matchingWeb(query: String, installed: List<ResolvedSearchApp>): List<SearchableAppDef> {
+    /** Catalog and web-only sites for `!` — always the website, including when the app is installed. */
+    fun matchingWeb(query: String, @Suppress("UNUSED_PARAMETER") installed: List<ResolvedSearchApp>): List<SearchableAppDef> {
         val trimmed = query.trim()
         if (!trimmed.startsWith("!")) return emptyList()
         val alias = trimmed.removePrefix("!").trim().substringBefore(' ').lowercase()
-        val takenPackages = installed.map { it.app.packageName }.toSet()
-        val takenNames = installed.map { it.def.appName.lowercase() }.toSet()
-        val pool = (catalog + webBangs).filter { def ->
-            def.siteSearch &&
-                def.appName.lowercase() !in takenNames &&
-                def.packages.none { it in takenPackages }
-        }
+        val pool = (catalog + webBangs).filter { def -> def.siteSearch }
         if (alias.isEmpty()) return pool.take(16)
         return pool.filter { def ->
             def.keywords.any { kw ->

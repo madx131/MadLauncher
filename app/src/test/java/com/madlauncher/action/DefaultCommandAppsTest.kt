@@ -55,6 +55,20 @@ class DefaultCommandAppsTest {
     }
 
     @Test
+    fun arrange_userOrderWinsWhenNotPinned() {
+        val apps = listOf(app("a"), app("b"), app("c"))
+        val ranked = DefaultCommandApps.arrange(
+            apps = apps,
+            defaultPackage = "a",
+            preferredPackage = null,
+            hidden = emptySet(),
+            order = listOf("c", "b", "a"),
+            pinDefault = false,
+        )
+        assertEquals(listOf("c", "b", "a"), ranked.map { it.packageName })
+    }
+
+    @Test
     fun arrange_dropsHiddenNonDefault() {
         val apps = listOf(app("a"), app("b"), app("c"))
         val ranked = DefaultCommandApps.arrange(

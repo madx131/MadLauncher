@@ -96,6 +96,7 @@ private fun commandEditTitle(id: CommandEditId?): String = when (id) {
     CommandEditId.CALL -> stringResource(R.string.action_box_kind_call)
     CommandEditId.VIDEO -> stringResource(R.string.action_box_kind_video)
     CommandEditId.SEARCH -> stringResource(R.string.action_box_kind_search)
+    CommandEditId.COMMON_APPS -> stringResource(R.string.action_box_kind_common_apps)
     CommandEditId.NOTES -> stringResource(R.string.action_box_kind_notes)
     CommandEditId.TRANSLATE -> stringResource(R.string.action_box_kind_translate)
     CommandEditId.NAV -> stringResource(R.string.action_box_kind_go)
@@ -140,6 +141,8 @@ fun SettingsOverlay(
         SettingsRoute.NOT_WORKING -> stringResource(R.string.settings_route_not_working)
         SettingsRoute.SHARE_APK -> stringResource(R.string.settings_route_share_apk)
         SettingsRoute.ABOUT -> stringResource(R.string.settings_route_about)
+        SettingsRoute.GLANCE -> stringResource(R.string.settings_route_glance)
+        SettingsRoute.MULTI -> stringResource(R.string.settings_route_multi)
     }
     Box(
         modifier = modifier
@@ -196,6 +199,8 @@ fun SettingsOverlay(
                             SettingsRoute.NOT_WORKING -> NotWorkingPage(vm)
                             SettingsRoute.SHARE_APK -> ShareApkPage(vm)
                             SettingsRoute.ABOUT -> AboutPage()
+                            SettingsRoute.GLANCE -> GlanceSettingsPage(vm)
+                            SettingsRoute.MULTI -> MultiWidgetSettingsPage(vm)
                             SettingsRoute.ACTION_BOX_COMMANDS,
                             SettingsRoute.ACTION_BOX_COMMAND_EDIT -> Unit
                         }
@@ -251,7 +256,17 @@ private fun SettingsHub(vm: LauncherViewModel) {
     HubRow(stringResource(R.string.settings_route_icons), stringResource(R.string.settings_hub_icons_subtitle)) { vm.openSettingsRoute(SettingsRoute.ICONS) }
     HubRow(stringResource(R.string.settings_route_gestures), stringResource(R.string.settings_hub_gestures_subtitle)) { vm.openSettingsRoute(SettingsRoute.GESTURES) }
     HubRow(stringResource(R.string.settings_route_fonts), stringResource(R.string.settings_hub_fonts_subtitle)) { vm.openSettingsRoute(SettingsRoute.FONTS) }
+    HubRow(stringResource(R.string.settings_route_glance), stringResource(R.string.settings_hub_glance_subtitle)) { vm.openSettingsRoute(SettingsRoute.GLANCE) }
+    if (vm.multiOnHome()) {
+        HubRow(stringResource(R.string.settings_route_multi), stringResource(R.string.settings_hub_multi_subtitle)) {
+            vm.openSettingsRoute(SettingsRoute.MULTI)
+        }
+    }
     HubRow(stringResource(R.string.settings_route_edit_docks), stringResource(R.string.settings_hub_docks_subtitle)) { vm.openSettingsRoute(SettingsRoute.EDIT_DOCKS) }
+    HubRow(
+        stringResource(R.string.action_box_commands_title),
+        stringResource(R.string.action_box_commands_hub_sub),
+    ) { vm.openSettingsRoute(SettingsRoute.ACTION_BOX_COMMANDS) }
     HubRow(stringResource(R.string.settings_route_permissions), stringResource(R.string.settings_hub_permissions_subtitle)) { vm.openSettingsRoute(SettingsRoute.PERMISSIONS) }
     HubRow(stringResource(R.string.settings_route_extras), stringResource(R.string.extras_hub_subtitle)) { vm.openSettingsRoute(SettingsRoute.EXTRAS) }
     HubRow(stringResource(R.string.settings_route_about), stringResource(R.string.about_hub_sub)) {
@@ -833,10 +848,6 @@ private fun EditDocksPage(vm: LauncherViewModel) {
     val s = vm.appearanceDraft
     val c = LocalMadTheme.current.colors
     val context = LocalContext.current
-    HubRow(
-        stringResource(R.string.action_box_commands_title),
-        stringResource(R.string.action_box_commands_hub_sub),
-    ) { vm.openSettingsRoute(SettingsRoute.ACTION_BOX_COMMANDS) }
     SectionLabel(stringResource(R.string.dock_bottom))
     ToggleRow(stringResource(R.string.dock_apps_button), s.showDockApps) { vm.patchAppearanceDraft { it.copy(showDockApps = !it.showDockApps) } }
     ToggleRow(stringResource(R.string.dock_action_box), s.showDockActionBox) { vm.patchAppearanceDraft { it.copy(showDockActionBox = !it.showDockActionBox) } }

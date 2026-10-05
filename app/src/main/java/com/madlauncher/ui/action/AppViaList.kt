@@ -1,10 +1,11 @@
 package com.madlauncher.ui.action
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -37,9 +38,14 @@ fun AppViaList(
     title: String,
     apps: List<InstalledActionApp>,
     defaultPackage: String? = null,
+    onLongPress: ((InstalledActionApp) -> Unit)? = null,
     onSelect: (InstalledActionApp) -> Unit,
 ) {
     val c = LocalMadTheme.current.colors
+    val filterHint = if (onLongPress != null) stringResource(R.string.action_box_filter_hint) else null
+    val defaultHint = stringResource(R.string.action_default_app)
+    fun tileHint(app: InstalledActionApp): String? = filterHint
+        ?: if (app.packageName == defaultPackage) defaultHint else null
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             title,
@@ -55,12 +61,9 @@ fun AppViaList(
                 apps.forEach { app ->
                     AppViaTile(
                         app = app,
-                        hint = if (app.packageName == defaultPackage) {
-                            stringResource(R.string.action_default_app)
-                        } else {
-                            null
-                        },
+                        hint = tileHint(app),
                         onSelect = { onSelect(app) },
+                        onLongPress = onLongPress?.let { handler -> { handler(app) } },
                     )
                 }
             }
@@ -75,12 +78,9 @@ fun AppViaList(
                 items(apps, key = { it.packageName }) { app ->
                     AppViaTile(
                         app = app,
-                        hint = if (app.packageName == defaultPackage) {
-                            stringResource(R.string.action_default_app)
-                        } else {
-                            null
-                        },
+                        hint = tileHint(app),
                         onSelect = { onSelect(app) },
+                        onLongPress = onLongPress?.let { handler -> { handler(app) } },
                     )
                 }
             }
@@ -88,11 +88,13 @@ fun AppViaList(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AppViaTile(
     app: InstalledActionApp,
     hint: String? = null,
     onSelect: () -> Unit,
+    onLongPress: (() -> Unit)? = null,
 ) {
     val resolvedHint = hint ?: stringResource(R.string.action_tap_or_drag_select)
     Row(
@@ -101,7 +103,13 @@ fun AppViaTile(
             .clip(RoundedCornerShape(14.dp))
             .background(app.color.copy(alpha = 0.12f))
             .border(1.dp, app.color.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
-            .clickable(onClick = onSelect)
+            .then(
+                if (onLongPress != null) {
+                    Modifier.combinedClickable(onClick = onSelect, onLongClick = onLongPress)
+                } else {
+                    Modifier.clickable(onClick = onSelect)
+                },
+            )
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

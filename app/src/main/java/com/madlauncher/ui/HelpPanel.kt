@@ -37,24 +37,30 @@ private data class HelpRowSpec(
 
 private val helpRowSpecs = listOf(
     HelpRowSpec("!", R.string.help_app_search_label, R.string.help_app_search_desc) { it.yellow },
-    HelpRowSpec("@", R.string.help_at_label, R.string.help_at_desc) { it.primary },
-    HelpRowSpec("&", R.string.help_contact_lookup_label, R.string.help_contact_lookup_desc) { it.primary },
-    HelpRowSpec(":", R.string.help_social_label, R.string.help_social_desc) { it.orange },
-    HelpRowSpec("*", R.string.help_video_call_label, R.string.help_video_call_desc) { it.red },
-    HelpRowSpec("?", R.string.help_group_label, R.string.help_group_desc) { it.primary },
-    HelpRowSpec("#", R.string.help_call_label, R.string.help_call_desc) { it.green },
-    HelpRowSpec("/n", R.string.help_note_label, R.string.help_note_desc) { it.accent },
-    HelpRowSpec("/a", R.string.help_add_contact_label, R.string.help_add_contact_desc) { it.primary },
-    HelpRowSpec("/t", R.string.help_translate_label, R.string.help_translate_desc) { it.blue },
-    HelpRowSpec("/g", R.string.help_nav_label, R.string.help_nav_desc) { it.accent },
-    HelpRowSpec("/s", R.string.help_sticky_label, R.string.help_sticky_desc) { it.yellow },
-    HelpRowSpec("/r", R.string.help_reminder_label, R.string.help_reminder_desc) { it.accent },
-    HelpRowSpec("/c", R.string.help_schedule_label, R.string.help_schedule_desc) { it.purple },
+    HelpRowSpec("@", R.string.help_filter_at_label, R.string.help_filter_at_desc) { it.primary },
+    HelpRowSpec("#", R.string.help_filter_call_label, R.string.help_filter_call_desc) { it.green },
+    HelpRowSpec(":", R.string.help_filter_social_label, R.string.help_filter_social_desc) { it.orange },
+    HelpRowSpec("*", R.string.help_filter_video_label, R.string.help_filter_video_desc) { it.red },
+    HelpRowSpec("?", R.string.help_filter_ai_label, R.string.help_filter_ai_desc) { it.primary },
+    HelpRowSpec("msg", R.string.help_at_label, R.string.help_at_desc) { it.primary },
+    HelpRowSpec("contact", R.string.help_contact_lookup_label, R.string.help_contact_lookup_desc) { it.primary },
+    HelpRowSpec("post", R.string.help_social_label, R.string.help_social_desc) { it.orange },
+    HelpRowSpec("video", R.string.help_video_call_label, R.string.help_video_call_desc) { it.red },
+    HelpRowSpec("ai", R.string.help_group_label, R.string.help_group_desc) { it.primary },
+    HelpRowSpec("call", R.string.help_call_label, R.string.help_call_desc) { it.green },
+    HelpRowSpec("note", R.string.help_note_label, R.string.help_note_desc) { it.accent },
+    HelpRowSpec("add contact", R.string.help_add_contact_label, R.string.help_add_contact_desc) { it.primary },
+    HelpRowSpec("trans", R.string.help_translate_label, R.string.help_translate_desc) { it.blue },
+    HelpRowSpec("go", R.string.help_nav_label, R.string.help_nav_desc) { it.accent },
+    HelpRowSpec("sticky", R.string.help_sticky_label, R.string.help_sticky_desc) { it.yellow },
+    HelpRowSpec("remind", R.string.help_reminder_label, R.string.help_reminder_desc) { it.accent },
+    HelpRowSpec("schedule", R.string.help_schedule_label, R.string.help_schedule_desc) { it.purple },
     HelpRowSpec("calc", R.string.help_calc_label, R.string.help_calc_desc) { it.accent },
-    HelpRowSpec("/ls", R.string.help_launcher_settings_label, R.string.help_launcher_settings_desc) { it.primary },
-    HelpRowSpec("/abs", R.string.help_action_box_settings_label, R.string.help_action_box_settings_desc) { it.primary },
-    HelpRowSpec("/ss", R.string.help_system_settings_label, R.string.help_system_settings_desc) { it.primary },
-    HelpRowSpec("/u", R.string.help_update_label, R.string.help_update_desc) { it.accent },
+    HelpRowSpec("gm", R.string.help_common_apps_label, R.string.help_common_apps_desc) { it.primary },
+    HelpRowSpec("ls", R.string.help_launcher_settings_label, R.string.help_launcher_settings_desc) { it.primary },
+    HelpRowSpec("abs", R.string.help_action_box_settings_label, R.string.help_action_box_settings_desc) { it.primary },
+    HelpRowSpec("ss", R.string.help_system_settings_label, R.string.help_system_settings_desc) { it.primary },
+    HelpRowSpec("update", R.string.help_update_label, R.string.help_update_desc) { it.accent },
     HelpRowSpec("911", R.string.help_emergency_label, R.string.help_emergency_desc) { it.red },
 )
 
@@ -111,7 +117,7 @@ fun CommandHelpList(
             onPick = onPick,
         )
         helpRowSpecs.filter { spec ->
-            !(vm.independentActionBox && (spec.symbol == "/s" || spec.symbol == "/ls"))
+            !(vm.independentActionBox && (spec.symbol == "sticky" || spec.symbol == "ls"))
         }.forEach { spec ->
             HelpPickRow(
                 symbol = spec.symbol,

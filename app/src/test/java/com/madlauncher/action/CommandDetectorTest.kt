@@ -44,6 +44,20 @@ class CommandDetectorTest {
     }
 
     @Test
+    fun symbolsAreFiltersNotSpaceCommits() {
+        assertTrue(CommandDetector.isSymbolFilter("@wa"))
+        assertTrue(CommandDetector.isSymbolFilter("#"))
+        assertTrue(CommandDetector.isSymbolFilter(":ig"))
+        assertTrue(CommandDetector.isSymbolFilter("*"))
+        assertTrue(CommandDetector.isSymbolFilter("?gpt"))
+        org.junit.Assert.assertFalse(CommandDetector.isSymbolFilter("msg alice"))
+        org.junit.Assert.assertFalse(CommandDetector.isSymbolFilter("call john"))
+        org.junit.Assert.assertFalse(CommandDetector.isSymbolFilter("&alice"))
+        assertTrue(CommandDetector.detect("@wa") is ActionCommand.ChatPick)
+        assertTrue(CommandDetector.detect("#wa") is ActionCommand.Call)
+    }
+
+    @Test
     fun ampersandIsContactLookup() {
         val cmd = CommandDetector.detect("&alice")
         assertTrue(cmd is ActionCommand.ContactLookup)
@@ -66,6 +80,26 @@ class CommandDetectorTest {
         val cmd = CommandDetector.detect("/g to paris")
         assertTrue(cmd is ActionCommand.Navigate)
         assertEquals("paris", (cmd as ActionCommand.Navigate).destination)
+    }
+
+    @Test
+    fun mapsBangIsWebsiteNotGoCommand() {
+        assertTrue(CommandDetector.detect("!maps Tel Aviv") is ActionCommand.None)
+        assertTrue(CommandDetector.detect("!map home") is ActionCommand.None)
+        assertTrue(CommandDetector.detect("!gmaps airport") is ActionCommand.None)
+        assertTrue(CommandDetector.detect("!waze work") is ActionCommand.None)
+    }
+
+    @Test
+    fun translateBangIsWebsiteNotTranslateCommand() {
+        assertTrue(CommandDetector.detect("!tr hello") is ActionCommand.None)
+        assertTrue(CommandDetector.detect("!translate good morning") is ActionCommand.None)
+    }
+
+    @Test
+    fun playBangStaysASearchNotACommand() {
+        assertTrue(CommandDetector.detect("!p widgets") is ActionCommand.None)
+        assertTrue(CommandDetector.detect("!play widgets") is ActionCommand.None)
     }
 
     @Test

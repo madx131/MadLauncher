@@ -45,9 +45,9 @@ class HomeIconSizeTest {
     }
 
     @Test
-    fun tallCellGrowsAfterShortVerticalDrag() {
-        assertEquals(3f, spanFromDrag(start = 2f, accPx = 50f, cellPx = 140f))
-        assertEquals(2f, spanFromDrag(start = 2f, accPx = 20f, cellPx = 140f))
-        assertEquals(1f, spanFromDrag(start = 2f, accPx = -50f, cellPx = 140f))
+    fun resizeFollowsTheFinger() {
+        assertEquals(2f + 50f / 140f, spanFromDrag(start = 2f, accPx = 50f, cellPx = 140f), 0.001f)
+        assertEquals(2f + 20f / 140f, spanFromDrag(start = 2f, accPx = 20f, cellPx = 140f), 0.001f)
+        assertEquals(2f - 50f / 140f, spanFromDrag(start = 2f, accPx = -50f, cellPx = 140f), 0.001f)
     }
 }

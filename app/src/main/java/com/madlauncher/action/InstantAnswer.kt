@@ -11,6 +11,8 @@ data class InstantAnswer(
     val source: String,
     val url: String,
     val fromDuckDuckGo: Boolean = true,
+    /** Number to leave in the box when the user taps =. */
+    val continueValue: String? = null,
 )
 
 object InstantAnswerClient {
@@ -78,9 +80,16 @@ object InstantAnswerClient {
 
     fun fetch(query: String): InstantAnswer? {
         if (!shouldLookup(query)) return null
+        when (LiveRates.classify(query)) {
+            LiveRates.Kind.CURRENCY -> return LiveRates.currency(query)
+            LiveRates.Kind.FUEL -> return LiveRates.fuel(query)
+            LiveRates.Kind.OTHER -> Unit
+        }
         val encoded = URLEncoder.encode(query.trim(), StandardCharsets.UTF_8.name())
         val url =
-            "https://api.duckduckgo.com/?q=$encoded&format=json&no_html=1&skip_disambig=1&t=madactionbox"
+            com.madlauncher.data.DuckDuckGoApp.tag(
+                "https://api.duckduckgo.com/?q=$encoded&format=json&no_html=1&skip_disambig=1",
+            )
         val body = runCatching { httpGet(url) }.getOrNull()
         return resolve(query, body)
     }

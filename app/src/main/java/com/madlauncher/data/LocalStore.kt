@@ -622,6 +622,66 @@ class LocalStore(context: Context) {
         prefs.edit().putString("platform_caps", obj.toString()).apply()
     }
 
+    var glanceSettings: GlanceSettings
+        get() = GlanceSettings.fromJson(prefs.getString("glance_settings", null))
+        set(value) { prefs.edit().putString("glance_settings", value.toJson()).apply() }
+
+    var multiBoards: Map<String, MultiBoard>
+        get() {
+            val raw = prefs.getString("multi_widget_pages", null) ?: return emptyMap()
+            return runCatching {
+                val obj = JSONObject(raw)
+                buildMap {
+                    obj.keys().forEach { key ->
+                        val legacy = obj.optJSONArray(key)
+                        if (legacy != null) {
+                            val pages = buildList {
+                                for (i in 0 until legacy.length()) {
+                                    val id = legacy.optString(i)
+                                    if (id == "glance" || id == "notes") add(id)
+                                }
+                            }
+                            put(key, MultiBoard.fromLegacy(pages))
+                        } else {
+                            val board = obj.optJSONObject(key) ?: return@forEach
+                            put(key, MultiBoard.fromJson(board))
+                        }
+                    }
+                }
+            }.getOrDefault(emptyMap())
+        }
+        set(value) {
+            val obj = JSONObject()
+            value.forEach { (key, board) -> obj.put(key, board.toJson()) }
+            prefs.edit().putString("multi_widget_pages", obj.toString()).apply()
+        }
+
+    var offlinePackReady: Boolean
+        get() = prefs.getBoolean("offline_pack_ready", false)
+        set(value) { prefs.edit().putBoolean("offline_pack_ready", value).apply() }
+
+    var offlineCurrencyJson: String
+        get() = prefs.getString("offline_currency_json", "") ?: ""
+        set(value) { prefs.edit().putString("offline_currency_json", value).apply() }
+
+    /** Calculator and unit conversion start on. Currency and translation join after a download, or if an older pack was already saved. */
+    var offlineModuleIds: Set<String>
+        get() {
+            val raw = prefs.getString("offline_module_ids", null)
+            if (raw != null) {
+                return raw.split(',').map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+            }
+            val ids = mutableSetOf("calc", "conversions")
+            if (offlinePackReady) {
+                ids += "currency"
+                ids += "translate"
+            }
+            return ids
+        }
+        set(value) {
+            prefs.edit().putString("offline_module_ids", value.joinToString(",")).apply()
+        }
+
     var actionBoxCatalog: String
         get() = prefs.getString("action_box_catalog", "") ?: ""
         set(value) { prefs.edit().putString("action_box_catalog", value).apply() }
@@ -656,6 +716,31 @@ class LocalStore(context: Context) {
             value.forEach { arr.put(it) }
             prefs.edit().putString("disabled_built_in_aliases", arr.toString()).apply()
         }
+
+    var knownAbsPackages: Set<String>
+        get() = stringSet("known_abs_packages")
+        set(value) { putStringSet("known_abs_packages", value) }
+
+    var skippedAbsNewApps: Set<String>
+        get() = stringSet("skipped_abs_new_apps")
+        set(value) { putStringSet("skipped_abs_new_apps", value) }
+
+    private fun stringSet(key: String): Set<String> {
+        val raw = prefs.getString(key, null) ?: return emptySet()
+        val arr = runCatching { JSONArray(raw) }.getOrNull() ?: return emptySet()
+        return buildSet {
+            for (i in 0 until arr.length()) {
+                val s = arr.optString(i).trim()
+                if (s.isNotEmpty()) add(s)
+            }
+        }
+    }
+
+    private fun putStringSet(key: String, value: Set<String>) {
+        val arr = JSONArray()
+        value.forEach { arr.put(it) }
+        prefs.edit().putString(key, arr.toString()).apply()
+    }
 
     var compatibilityReportSubmitted: Boolean
         get() = prefs.getBoolean("compat_report_submitted", false)

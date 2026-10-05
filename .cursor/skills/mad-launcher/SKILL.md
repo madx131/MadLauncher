@@ -100,12 +100,14 @@ Do not reopen BootBurst-style boot paths that made cold start slower.
 
 ## ActionBox
 
-- `@` = messaging + email apps; `:` = curated catalog **plus** dynamic `SearchableInfo` discovery.
-- `@`: pick app → pick contact → **open that chat** (ready to type). Do not compose/send from MAD.
-- `!`: pick social app → **open the composer** (Facebook/Instagram: leave Reels/feed, tap What's on your mind / Create; do not fill/post).
-- **Your commands**: open an app, or a **quick combo** (`@` `!` `#` `*`) with a pre-selected app and optional contact. Not free-form scripts.
-- Command pickers rank the **system default** app first. Users edit each command under Settings → Edit dock/s → ActionBox Settings → that command.
-- `update` / `updates` / `/u` opens GetApps or Play Store on the updates list (user taps Update all). Hidden: type **do a barrel roll** for a 360° spin.
+- Commands use **Space**, not symbols: `msg ` message, `post ` social, `call ` / `video `, `ai `, `contact `, `note `, `go `, `sticky `, `remind `, `schedule `. `@` `#` `:` `*` `?` are **filters** for those app kinds: tap opens the app, long-press does the Space addon. Bare symbol + Space (`@ `, `# `, …) and word + Space (`msg `, `go `, `post `, …) run the Space addon on the **first app** in that command’s ActionBox Settings list (drag order is used; system default is not pinned). `&` is still contact lookup. `/n` `/g` still work if you type them.
+- `msg ` → first messaging/email app in the edited list → pick contact → **open that chat** (ready to type). Do not compose/send from MAD.
+- `post ` → first social app in the edited list → **open the composer** (Facebook/Instagram: leave Reels/feed, tap What's on your mind / Create; do not fill/post).
+- Common apps (`gm`, `yt`, `ytm`, `sp`, `wa`, `ig`, …): **Enter** opens the app. **Space** opens its in-box addon (in-app search, calc keypad, maps destination). `!gm query` always searches the **website in the browser**. Listed under ActionBox Settings → Common apps. DuckDuckGo `!` bangs live under ActionBox Settings → DDG extras.
+- **Your commands**: open an app, or a **quick combo** (message / post / call / video) with a pre-selected app and optional contact. Not free-form scripts.
+- Command pickers and symbol+Space use the **edited list order** in ActionBox Settings (drag to set the first app). The system default is labeled but not forced to the top.
+- Opening ActionBox Settings after a new app is installed offers a 2–3 letter Your-commands shortcut, with ABS-style suggestions (`gm`, `yt`, `wa`). First ABS open only snapshots installed apps so existing phones are not spammed.
+- `update` / `updates` opens GetApps or Play Store on the updates list (user taps Update all). Hidden: type **do a barrel roll** for a 360° spin.
 
 ## Language packs and reports
 

@@ -34,6 +34,8 @@ sealed class ActionCommand {
     data class Navigate(val destination: String) : ActionCommand()
     /** User-defined phrase (e.g. /d, do, stick picture) opens [packageName]. */
     data class OpenApp(val packageName: String, val payload: String) : ActionCommand()
+    /** Bare `gm` / `calc` — Enter launches; payload is the Space addon body. */
+    data class OpenCommonApp(val shortcutId: String, val payload: String = "") : ActionCommand()
     /** Custom shortcut that expands into @ / ! / # / * with an app and optional contact. */
     data class QuickCombo(
         val combo: UserShortcutCombo,
@@ -77,6 +79,13 @@ object CommandDetector {
         return digits.length >= 3 && s.trim().matches(Regex("^[\\d\\s+()-]+$"))
     }
 
+    /** `@` `#` `:` `*` `?` — filter the apps that command stands for. Not Space-compose. */
+    fun isSymbolFilter(raw: String): Boolean {
+        if (raw.isEmpty()) return false
+        val c = raw.first()
+        return c == '@' || c == '#' || c == ':' || c == '：' || c == '*' || c == '?'
+    }
+
     fun detect(raw: String, skipUserShortcuts: Boolean = false): ActionCommand {
         if (raw.isEmpty()) return ActionCommand.None
         val trimmedLower = raw.trim().lowercase()
@@ -84,6 +93,15 @@ object CommandDetector {
             return ActionCommand.Emergency
         }
         if (isBarrelRoll(raw)) return ActionCommand.BarrelRoll
+        foldedAppBang(raw)?.let { return it }
+
+        val customExact = if (skipUserShortcuts) null else UserShortcuts.matchDetailed(raw)
+        if (customExact != null && raw.trim().equals(customExact.first, ignoreCase = true)) {
+            return customExact.second
+        }
+        CommonAppShortcuts.matchExact(raw)?.let { hit ->
+            return ActionCommand.OpenCommonApp(hit.id)
+        }
 
         val alias = CommandAliases.matchDetailed(raw)
         val custom = if (skipUserShortcuts) null else UserShortcuts.matchDetailed(raw)
@@ -160,6 +178,10 @@ object CommandDetector {
                 return ActionCommand.Help
         }
 
+        CommonAppShortcuts.matchPayload(raw)?.let { (hit, payload) ->
+            return ActionCommand.OpenCommonApp(hit.id, payload)
+        }
+
         val nav = navRegex.matchEntire(raw.trim())
         if (nav != null) {
             return ActionCommand.Navigate(stripNavToPrefix(nav.groupValues[2]))
@@ -172,6 +194,14 @@ object CommandDetector {
         }
 
         return ActionCommand.None
+    }
+
+    /**
+     * `!` is always a website in the browser. Maps/translate/play bangs are not MAD commands.
+     */
+    private fun foldedAppBang(raw: String): ActionCommand? {
+        if (!raw.trim().startsWith("!")) return null
+        return null
     }
 
     /** Google's "do a barrel roll" — exact-ish phrase, before aliases so `do` shortcuts cannot steal it. */

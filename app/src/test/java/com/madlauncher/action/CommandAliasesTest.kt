@@ -36,9 +36,47 @@ class CommandAliasesTest {
     }
 
     @Test
+    fun spaceCommitsAndSocialWords() {
+        assertTrue(CommandAliases.isChatCommit("msg "))
+        org.junit.Assert.assertFalse(CommandAliases.isChatCommit("@ "))
+        assertTrue(CommandAliases.isSocialCommit("post "))
+        org.junit.Assert.assertFalse(CommandAliases.isSocialCommit(": "))
+        assertTrue(CommandAliases.isCallCommit("call "))
+        org.junit.Assert.assertFalse(CommandAliases.isCallCommit("# "))
+        assertTrue(CommandAliases.isVideoCommit("video "))
+        org.junit.Assert.assertFalse(CommandAliases.isVideoCommit("* "))
+        assertTrue(CommandAliases.isStickyCommit("sticky "))
+        assertTrue(CommandAliases.isReminderCommit("remind "))
+        assertTrue(CommandAliases.isScheduleCommit("schedule "))
+        assertTrue(CommandAliases.isScheduleCommit("event "))
+        assertTrue(CommandAliases.isNotesCommit("note "))
+        org.junit.Assert.assertFalse(CommandAliases.isChatCommit("msg"))
+        org.junit.Assert.assertFalse(CommandAliases.isSocialCommit("post"))
+        assertTrue(CommandAliases.isSymbolShortcutCommit("@ "))
+        assertTrue(CommandAliases.isSymbolShortcutCommit("# "))
+        assertTrue(CommandAliases.isSymbolShortcutCommit(": "))
+        assertTrue(CommandAliases.isSymbolShortcutCommit("* "))
+        assertTrue(CommandAliases.isSymbolShortcutCommit("? "))
+        org.junit.Assert.assertFalse(CommandAliases.isSymbolShortcutCommit("@wa "))
+        org.junit.Assert.assertFalse(CommandAliases.isSymbolShortcutCommit("msg "))
+    }
+
+    @Test
+    fun postAndScheduleWords() {
+        assertTrue(CommandDetector.detect("post") is ActionCommand.PostPick)
+        assertEquals("cats", (CommandDetector.detect("post cats") as ActionCommand.PostPick).filter)
+        assertTrue(CommandDetector.detect("schedule lunch") is ActionCommand.Schedule)
+        assertEquals("lunch", (CommandDetector.detect("schedule lunch") as ActionCommand.Schedule).activity)
+        assertEquals(ActionCommand.Help, CommandDetector.detect("help"))
+        assertTrue(CommandDetector.detect("@") is ActionCommand.ChatPick)
+        assertTrue(CommandDetector.detect("#") is ActionCommand.Call)
+    }
+
+    @Test
     fun autocomplete_firstWordAlias() {
         assertEquals("message ", CommandAliases.autocomplete("mes"))
         assertEquals("translate ", CommandAliases.autocomplete("tra"))
+        assertEquals("post ", CommandAliases.autocomplete("pos"))
     }
 
     @Test
@@ -52,7 +90,7 @@ class CommandAliasesTest {
     @Test
     fun notesAndAiCommit() {
         assertTrue(CommandAliases.isNotesCommit("/n "))
-        assertTrue(CommandAliases.isAiCommit("? "))
+        org.junit.Assert.assertFalse(CommandAliases.isAiCommit("? "))
         assertTrue(CommandAliases.isAiCommit("ai "))
         assertTrue(CommandAliases.isContactLookupCommit("& "))
         org.junit.Assert.assertFalse(CommandAliases.isNotesCommit("/n hello"))
@@ -76,6 +114,8 @@ class CommandAliasesTest {
         assertTrue(CommandAliases.isNavCommit("/g "))
         assertTrue(CommandAliases.isNavCommit("/G "))
         assertTrue(CommandAliases.isNavCommit("go "))
+        org.junit.Assert.assertFalse(CommandAliases.isNavCommit("!maps "))
+        org.junit.Assert.assertFalse(CommandAliases.isNavCommit("!waze "))
         org.junit.Assert.assertFalse(CommandAliases.isNavCommit("/g paris"))
         org.junit.Assert.assertFalse(CommandAliases.isNavCommit("go home"))
     }

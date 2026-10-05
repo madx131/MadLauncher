@@ -18,6 +18,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.madlauncher.BuildConfig
 import com.madlauncher.R
+import com.madlauncher.about.ActionBoxModules
+import com.madlauncher.about.ActionModule
 import com.madlauncher.about.OssCredit
 import com.madlauncher.about.OssCredits
 import com.madlauncher.ui.theme.LocalMadTheme
@@ -65,6 +67,17 @@ fun AboutPage() {
     AboutLink(stringResource(R.string.about_ddg_store)) {
         openAboutLink(context, OssCredits.DUCKDUCKGO_MARKET)
     }
+    if (BuildConfig.ACTION_BOX_APP) {
+        SectionLabel(stringResource(R.string.about_modules_heading))
+        Text(
+            stringResource(R.string.about_modules_body),
+            color = LocalMadTheme.current.colors.muted,
+            fontSize = 13.sp,
+        )
+        ActionBoxModules.all.forEach { module ->
+            ModuleBlock(module) { openAboutLink(context, it) }
+        }
+    }
     SectionLabel(stringResource(R.string.about_credits_heading))
     Text(
         stringResource(R.string.about_credits_body),
@@ -105,6 +118,26 @@ private fun CreditBlock(credit: OssCredit, onLink: (String) -> Unit) {
                 .clickable { onLink(credit.projectUrl) }
                 .padding(vertical = 2.dp),
         )
+    }
+}
+
+@Composable
+private fun ModuleBlock(module: ActionModule, onLink: (String) -> Unit) {
+    val c = LocalMadTheme.current.colors
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+        Text(stringResource(module.name), color = c.fg, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        Text(stringResource(module.role), color = c.muted, fontSize = 12.sp)
+        if (module.url.isNotBlank()) {
+            Text(
+                stringResource(module.source),
+                color = c.primary,
+                fontSize = 13.sp,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable { onLink(module.url) }
+                    .padding(vertical = 2.dp),
+            )
+        }
     }
 }
 

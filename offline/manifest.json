@@ -1,0 +1,8 @@
+{
+  "modules": [
+    {"id": "calc", "name": "Calculator"},
+    {"id": "conversions", "name": "Unit conversion"},
+    {"id": "currency", "name": "Currency", "file": "currency.json"},
+    {"id": "translate", "name": "Offline translation", "engine": "mlkit"}
+  ]
+}

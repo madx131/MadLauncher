@@ -7,6 +7,7 @@ import android.appwidget.AppWidgetProviderInfo
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.RectF
 import android.net.Uri
 import android.os.Build
@@ -29,6 +30,10 @@ import com.madlauncher.NavShortcutBridge
 import com.madlauncher.action.InstantAnswer
 import com.madlauncher.action.InstantAnswerClient
 import com.madlauncher.action.InstantModules
+import com.madlauncher.action.BoxedConversion
+import com.madlauncher.action.BoxedTranslation
+import com.madlauncher.action.LiveRates
+import com.madlauncher.action.OfflinePack
 import com.madlauncher.action.OnDeviceTranslateUi
 import com.madlauncher.action.OnDeviceTranslator
 import com.madlauncher.action.AppFuzzy
@@ -38,6 +43,7 @@ import com.madlauncher.action.AliasTarget
 import com.madlauncher.action.CallResult
 import com.madlauncher.action.PostResult
 import com.madlauncher.action.ActionCommand
+import com.madlauncher.action.AbsShortcutSuggest
 import com.madlauncher.action.CommandAliases
 import com.madlauncher.action.UserShortcut
 import com.madlauncher.action.UserShortcutCombo
@@ -51,6 +57,9 @@ import com.madlauncher.action.TranslateLangSlot
 import com.madlauncher.action.TranslatorLanguage
 import com.madlauncher.action.TranslatorLanguages
 import com.madlauncher.action.CommandDetector
+import com.madlauncher.action.CommonAppShortcut
+import com.madlauncher.action.CommonAppShortcuts
+import com.madlauncher.action.SpaceAddon
 import com.madlauncher.action.BangCatalog
 import com.madlauncher.action.BangEntry
 import com.madlauncher.action.CustomBang
@@ -60,7 +69,9 @@ import com.madlauncher.action.DefaultCommandApps
 import com.madlauncher.action.InstalledActionApp
 import com.madlauncher.action.ResolvedSearchApp
 import com.madlauncher.action.SearchInAppResult
+import com.madlauncher.action.SearchableAppDef
 import com.madlauncher.action.SearchableApps
+import com.madlauncher.action.WeatherLaunchGuard
 import com.madlauncher.action.SendMessageResult
 import com.madlauncher.notif.LiveNotif
 import com.madlauncher.notif.MessagingAppRegistry
@@ -158,6 +169,13 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    var glanceSettings by mutableStateOf(store.glanceSettings)
+        private set
+    var deviceLoad by mutableStateOf(DeviceLoad.Snapshot())
+        private set
+    var multiBoards by mutableStateOf(store.multiBoards)
+        private set
+    var multiWidgetPickHost by mutableStateOf<String?>(null)
     var clock by mutableStateOf("")
         private set
     var date by mutableStateOf("")
@@ -206,6 +224,14 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         private set
     var pendingYourCommandPhrase by mutableStateOf("")
         private set
+    var pendingNewAppShortcut by mutableStateOf<LaunchableApp?>(null)
+        private set
+    var pendingNewAppRemaining by mutableStateOf(0)
+        private set
+    var newAppShortcutDraft by mutableStateOf("")
+    var newAppShortcutError by mutableStateOf<String?>(null)
+        private set
+    private var pendingNewAppQueue = emptyList<LaunchableApp>()
     var appearanceSettings by mutableStateOf(store.appearanceSettings)
         private set
     var appearanceDraft by mutableStateOf(store.appearanceSettings)
@@ -283,16 +309,39 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     /** `calc` + space — in-box keypad so `=` does not flip Gboard back to letters. */
     var calcMode by mutableStateOf(false)
         private set
+    /** Space addon for a common-app shortcut (clock reminder, calendar event, camera ready). */
+    var spaceAddon by mutableStateOf<SpaceAddon?>(null)
+        private set
+    var spaceShortcutId by mutableStateOf<String?>(null)
+        private set
+    var stickyCompose by mutableStateOf(false)
+        private set
     var translateFromCode by mutableStateOf<String?>(null)
         private set
     var translateToCode by mutableStateOf<String?>(null)
         private set
     var instantAnswer by mutableStateOf<InstantAnswer?>(null)
         private set
-    var onDeviceTranslate by mutableStateOf<OnDeviceTranslateUi>(OnDeviceTranslateUi.Idle)
+    var translatePreview by mutableStateOf<String?>(null)
+        private set
+    var translatePreviewBusy by mutableStateOf(false)
+        private set
+    var boxedTranslations by mutableStateOf<List<BoxedTranslation>>(emptyList())
+        private set
+    var boxedConversions by mutableStateOf<List<BoxedConversion>>(emptyList())
+        private set
+    private var conversionEpoch = 0
+    var offlinePackReady by mutableStateOf(store.offlinePackReady)
+        private set
+    var offlineModules by mutableStateOf(store.offlineModuleIds)
+        private set
+    var offlineModuleBusy by mutableStateOf<String?>(null)
+        private set
+    var offlineCatalog by mutableStateOf<List<OfflinePack.Module>>(emptyList())
         private set
     private var instantAnswerJob: Job? = null
-    private var onDeviceTranslateJob: Job? = null
+    private var translatePreviewJob: Job? = null
+    private var pinRequestedCode: String? = null
 
     var notes by mutableStateOf(store.notes())
         private set
@@ -516,6 +565,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         private set
     var widgetBindIntent by mutableStateOf<Intent?>(null)
     var widgetConfigIntent by mutableStateOf<Intent?>(null)
+    private var pendingMultiHostId: String? = null
     private var pendingAppWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
     private var pendingAppWidgetSpan = 2 to 2
     private var pendingPlaceCol = -1
@@ -696,10 +746,29 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 ActionAppKind.Ai -> return ActionCommand.AiAsk(actionQuery)
                 ActionAppKind.Nav -> return ActionCommand.Navigate(actionQuery.trim())
                 ActionAppKind.Contacts -> return ActionCommand.AddContact(actionQuery)
+                ActionAppKind.Messaging, ActionAppKind.Email ->
+                    if (composeApp == null) return ActionCommand.ChatPick(actionQuery)
+                ActionAppKind.Social ->
+                    if (composeApp == null) return ActionCommand.PostPick(actionQuery)
+                ActionAppKind.VoiceCall ->
+                    if (composeApp == null) return ActionCommand.Call(actionQuery.trim())
+                ActionAppKind.VideoCall ->
+                    if (composeApp == null) return ActionCommand.VideoCall(actionQuery.trim())
                 else -> Unit
+            }
+            if (stickyCompose) {
+                return ActionCommand.Note(actionQuery, floating = true)
             }
             pendingUserShortcutPkg?.let { pkg ->
                 return ActionCommand.OpenApp(pkg, actionQuery.trim())
+            }
+            when (spaceAddon) {
+                SpaceAddon.REMINDER -> return ActionCommand.Reminder(actionQuery)
+                SpaceAddon.SCHEDULE -> return ActionCommand.Schedule(actionQuery)
+                SpaceAddon.OPEN -> spaceShortcutId?.let { id ->
+                    return ActionCommand.OpenCommonApp(id)
+                }
+                else -> Unit
             }
             if (contactLookupActive) {
                 return ActionCommand.ContactLookup(
@@ -851,6 +920,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         CommandAliases.replaceExtras(userAliases)
         CommandAliases.replaceDisabledBuiltIns(disabledBuiltInAliases)
         UserShortcuts.replace(userShortcuts)
+        offlineCatalog = OfflinePack.catalog(getApplication())
+        applyOfflineModules()
         viewModelScope.launch(Dispatchers.IO) {
             val text = runCatching {
                 getApplication<Application>().assets.open("bangs.tsv")
@@ -873,8 +944,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             refreshPlatformProfile()
             viewModelScope.launch {
                 while (isActive) {
-                    delay(15_000)
                     refreshClock()
+                    deviceLoad = DeviceLoad.sample(getApplication())
+                    val wait = if (glanceSettings.liveSeconds()) 1_000L else 15_000L
+                    delay(wait)
                 }
             }
             viewModelScope.launch {
@@ -1302,6 +1375,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun openActionBoxSettings() {
         settingsFromActionBox = true
         settingsRoute = SettingsRoute.ACTION_BOX_COMMANDS
+        noteAbsOpened()
     }
 
     fun addCommandAlias(target: AliasTarget, phrase: String) {
@@ -1376,6 +1450,93 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         )
         persistUserShortcuts(userShortcuts + item)
         return null
+    }
+
+    /** First ABS open snapshots installed apps. Later opens prompt for newly installed ones. */
+    fun noteAbsOpened() {
+        if (loadingApps) return
+        if (pendingNewAppShortcut != null) return
+        val self = getApplication<Application>().packageName
+        val current = apps.filterNot { it.packageName.equals(self, ignoreCase = true) }
+            .distinctBy { it.packageName }
+        val currentPkgs = current.map { it.packageName }.toSet()
+        val known = store.knownAbsPackages
+        if (known.isEmpty()) {
+            store.knownAbsPackages = currentPkgs
+            return
+        }
+        val skipped = store.skippedAbsNewApps
+        val covered = userShortcuts.map { it.packageName }.toSet() +
+            CommonAppShortcuts.catalog.flatMap { it.packages }
+        val fresh = current.filter { app ->
+            app.packageName !in known &&
+                app.packageName !in skipped &&
+                app.packageName !in covered
+        }
+        pendingNewAppQueue = fresh
+        showNextNewAppShortcut()
+    }
+
+    fun absShortcutSuggestions(app: LaunchableApp): List<String> =
+        AbsShortcutSuggest.phrases(app.label, app.packageName)
+            .filter { reservedShortcutReason(it) == null }
+            .take(6)
+
+    fun pickNewAppShortcutSuggestion(phrase: String) {
+        newAppShortcutDraft = phrase
+        newAppShortcutError = null
+    }
+
+    fun clearNewAppShortcutError() {
+        newAppShortcutError = null
+    }
+
+    fun saveNewAppShortcut() {
+        val app = pendingNewAppShortcut ?: return
+        val word = newAppShortcutDraft.trim().lowercase()
+        if (word.length !in 2..3 || !word.all { it.isLetter() }) {
+            newAppShortcutError = overlayString(R.string.action_box_new_app_letters)
+            return
+        }
+        val err = addUserShortcut(listOf(word), app.packageName)
+        if (err != null) {
+            newAppShortcutError = err
+            return
+        }
+        store.knownAbsPackages = store.knownAbsPackages + app.packageName
+        showToast(overlayString(R.string.action_box_command_added, word))
+        advanceNewAppQueue(app.packageName)
+    }
+
+    fun skipNewAppShortcut() {
+        val app = pendingNewAppShortcut ?: return
+        store.skippedAbsNewApps = store.skippedAbsNewApps + app.packageName
+        store.knownAbsPackages = store.knownAbsPackages + app.packageName
+        advanceNewAppQueue(app.packageName)
+    }
+
+    fun skipAllNewAppShortcuts() {
+        val pkgs = pendingNewAppQueue.map { it.packageName }.toSet()
+        store.skippedAbsNewApps = store.skippedAbsNewApps + pkgs
+        store.knownAbsPackages = store.knownAbsPackages + pkgs
+        pendingNewAppQueue = emptyList()
+        pendingNewAppShortcut = null
+        pendingNewAppRemaining = 0
+        newAppShortcutDraft = ""
+        newAppShortcutError = null
+    }
+
+    private fun advanceNewAppQueue(donePkg: String) {
+        pendingNewAppQueue = pendingNewAppQueue.filterNot { it.packageName == donePkg }
+        showNextNewAppShortcut()
+    }
+
+    private fun showNextNewAppShortcut() {
+        val next = pendingNewAppQueue.firstOrNull()
+        pendingNewAppShortcut = next
+        pendingNewAppRemaining = pendingNewAppQueue.size
+        newAppShortcutError = null
+        newAppShortcutDraft = next?.let { absShortcutSuggestions(it).firstOrNull() }.orEmpty()
     }
 
     fun removeUserShortcut(id: String) {
@@ -1551,6 +1712,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             CommandAliases.allPhrases(target).any { it.equals(word, ignoreCase = true) }
         }
         if (builtin) return overlayString(R.string.action_box_shortcut_builtin, word)
+        if (CommandAliases.calc.any { it.equals(word, ignoreCase = true) }) {
+            return overlayString(R.string.action_box_shortcut_builtin, word)
+        }
+        if (CommonAppShortcuts.allPhrases().any { it.equals(word, ignoreCase = true) }) {
+            return overlayString(R.string.action_box_shortcut_builtin, word)
+        }
         if (UserShortcuts.phraseTaken(word, exceptId)) return overlayString(R.string.action_box_shortcut_taken, word)
         return null
     }
@@ -1917,11 +2084,20 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun applyHelpCommand(symbol: String) {
         commandPickerOpen = false
         when (symbol) {
-            "/ls" -> openHomeSettings()
-            "/ss" -> openSystemSettings()
-            "/abs" -> openActionBoxSettings()
-            "/h" -> { }
+            "/ls", "ls" -> openHomeSettings()
+            "/ss", "ss" -> openSystemSettings()
+            "/abs", "abs" -> openActionBoxSettings()
+            "/h", "help" -> {
+                commandPickerOpen = true
+                actionQuery = ""
+            }
             "+" -> onQueryChange("+ ")
+            "@" -> onQueryChange("@")
+            "#" -> onQueryChange("#")
+            ":" -> onQueryChange(":")
+            "*" -> onQueryChange("*")
+            "?" -> onQueryChange("?")
+            "&" -> onQueryChange("&")
             else -> {
                 val inject = if (symbol.startsWith("/") || symbol.any { it.isLetter() }) {
                     "$symbol "
@@ -1940,8 +2116,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         searchScope = null
         instantAnswer = null
         instantAnswerJob?.cancel()
-        onDeviceTranslate = OnDeviceTranslateUi.Idle
-        onDeviceTranslateJob?.cancel()
+        translatePreview = null
+        translatePreviewBusy = false
+        translatePreviewJob?.cancel()
+        boxedTranslations = emptyList()
+        pinRequestedCode = null
+        boxedConversions = emptyList()
         clearCompose()
         helpOpen = false
         commandPickerOpen = false
@@ -2619,6 +2799,109 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         homePagerLocked = false
     }
 
+    fun patchGlance(transform: (GlanceSettings) -> GlanceSettings) {
+        glanceSettings = transform(glanceSettings)
+        store.glanceSettings = glanceSettings
+    }
+
+    fun setGlanceElement(id: String, on: Boolean) {
+        if (id !in GlanceElements.all) return
+        val enabled = if (on) glanceSettings.enabled + id else glanceSettings.enabled - id
+        if (enabled.isEmpty()) return
+        patchGlance { it.copy(enabled = enabled) }
+    }
+
+    fun placeGlance(id: String, box: GlanceBox, persist: Boolean = true) {
+        if (id !in GlanceElements.all) return
+        val next = glanceSettings.copy(boxes = glanceSettings.boxes + (id to box.clamped()))
+        glanceSettings = next
+        if (persist) store.glanceSettings = next
+    }
+
+    fun moveGlanceElement(id: String, delta: Int) {
+        val order = glanceSettings.order.toMutableList()
+        val index = order.indexOf(id)
+        val next = index + delta
+        if (index < 0 || next !in order.indices) return
+        val swapped = order[index]
+        order[index] = order[next]
+        order[next] = swapped
+        patchGlance { it.copy(order = order) }
+    }
+
+    fun multiOnHome(): Boolean = homePages.any { page -> page.items.any { it.widget == "multi" } }
+
+    fun multiBoardFor(itemId: String): MultiBoard = multiBoards[itemId] ?: MultiBoard()
+
+    fun patchMulti(itemId: String, transform: (MultiBoard) -> MultiBoard) {
+        val next = transform(multiBoardFor(itemId))
+        multiBoards = multiBoards + (itemId to next)
+        store.multiBoards = multiBoards
+    }
+
+    fun placeMultiSlot(itemId: String, index: Int, box: GlanceBox, persist: Boolean = true) {
+        val board = multiBoardFor(itemId)
+        if (index !in board.slots.indices) return
+        val slots = board.slots.toMutableList()
+        slots[index] = slots[index].copy(box = box.clamped())
+        val next = board.copy(slots = slots)
+        multiBoards = multiBoards + (itemId to next)
+        if (persist) store.multiBoards = multiBoards
+    }
+
+    fun addMultiBuiltIn(itemId: String, kind: String) {
+        if (kind != "glance" && kind != "notes") return
+        val board = multiBoardFor(itemId)
+        if (board.slots.any { it.kind == kind }) return
+        val slot = MultiSlot(kind = kind, box = GlanceBox(0.04f, 0.04f, 0.72f, 0.42f))
+        patchMulti(itemId) { it.copy(slots = it.slots + slot) }
+    }
+
+    fun removeMultiSlot(itemId: String, index: Int) {
+        val board = multiBoardFor(itemId)
+        val slot = board.slots.getOrNull(index) ?: return
+        if (slot.kind == "app" && slot.appWidgetId != 0) {
+            runCatching { widgetHost.discardHostView(slot.appWidgetId) }
+            runCatching { widgetHost.deleteAppWidgetId(slot.appWidgetId) }
+        }
+        patchMulti(itemId) { it.copy(slots = it.slots.filterIndexed { i, _ -> i != index }) }
+    }
+
+    fun openMultiWidgetPicker(itemId: String) {
+        multiWidgetPickHost = itemId
+        widgetPickerOpen = true
+        ensureWidgetCatalog()
+    }
+
+    fun ensureWidgetCatalog() {
+        if (widgetCatalog.isNotEmpty() || widgetCatalogLoading) return
+        widgetCatalogLoading = true
+        viewModelScope.launch {
+            try {
+                widgetCatalog = withContext(Dispatchers.IO) { buildWidgetCatalog() }
+            } catch (t: Throwable) {
+                android.util.Log.e("MadWidget", "widget catalog failed", t)
+                widgetCatalog = emptyList()
+            } finally {
+                widgetCatalogLoading = false
+            }
+        }
+    }
+
+    fun addAppWidgetToMulti(itemId: String, entry: WidgetCatalogEntry) {
+        val info = entry.info ?: return
+        multiWidgetPickHost = itemId
+        addInstalledWidget(info)
+    }
+
+    fun closeWidgetPicker() {
+        widgetPickerOpen = false
+        if (pendingAppWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID) {
+            multiWidgetPickHost = null
+            pendingMultiHostId = null
+        }
+    }
+
     fun hasEdgePanel(side: EdgeSide): Boolean = edgePanels.any { it.side == side }
 
     fun toggleEdgePanel(side: EdgeSide) {
@@ -2733,6 +3016,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         if (route != SettingsRoute.ACTION_BOX_COMMAND_EDIT) commandEditId = null
         settingsRoute = route
         refreshPlatformProfile()
+        if (route == SettingsRoute.ACTION_BOX_COMMANDS) noteAbsOpened()
     }
 
     fun openAbout(from: SettingsRoute) {
@@ -2765,8 +3049,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         searchScope = null
         instantAnswer = null
         instantAnswerJob?.cancel()
-        onDeviceTranslate = OnDeviceTranslateUi.Idle
-        onDeviceTranslateJob?.cancel()
+        translatePreview = null
+        translatePreviewBusy = false
+        translatePreviewJob?.cancel()
+        boxedTranslations = emptyList()
+        pinRequestedCode = null
+        boxedConversions = emptyList()
         helpOpen = false
         commandPickerOpen = false
         clearCompose()
@@ -2813,8 +3101,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         searchScope = null
         instantAnswer = null
         instantAnswerJob?.cancel()
-        onDeviceTranslate = OnDeviceTranslateUi.Idle
-        onDeviceTranslateJob?.cancel()
+        translatePreview = null
+        translatePreviewBusy = false
+        translatePreviewJob?.cancel()
+        boxedTranslations = emptyList()
+        pinRequestedCode = null
+        boxedConversions = emptyList()
         helpOpen = false
         commandPickerOpen = false
         clearCompose()
@@ -3071,9 +3363,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun setWebSearchEngine(engine: WebSearchEngine) {
-        val leavingDdg = appearanceSettings.webSearchEngine == WebSearchEngine.DUCKDUCKGO &&
-            engine != WebSearchEngine.DUCKDUCKGO
-        val wasInstantOn = appearanceSettings.instantAnswersEnabled
         val nextInstant = engine == WebSearchEngine.DUCKDUCKGO && appearanceSettings.instantAnswersEnabled
         appearanceSettings = appearanceSettings.copy(
             webSearchEngine = engine,
@@ -3084,12 +3373,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             webSearchEngine = engine,
             instantAnswersEnabled = nextInstant,
         )
+        LiveRates.useDuckDuckGo = engine == WebSearchEngine.DUCKDUCKGO
         if (engine != WebSearchEngine.DUCKDUCKGO) {
             instantAnswerJob?.cancel()
             instantAnswer = instantAnswer?.takeIf { !it.fromDuckDuckGo }
-            if (leavingDdg && wasInstantOn) {
-                showToast(overlayString(R.string.action_box_instant_answers_ddg_only))
-            }
         }
     }
 
@@ -3482,6 +3769,15 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 builtInId = "glance",
             ),
             WidgetCatalogEntry(
+                providerKey = "builtin:multi",
+                appLabel = "MAD",
+                widgetLabel = "Mad Multi Widget",
+                packageName = app.packageName,
+                spanX = 4,
+                spanY = 2,
+                builtInId = "multi",
+            ),
+            WidgetCatalogEntry(
                 providerKey = "builtin:notes",
                 appLabel = "MAD",
                 widgetLabel = "Notes",
@@ -3605,7 +3901,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             showToast("Widgets go on an empty page")
             return
         }
-        val tries = if (widget == "glance") {
+        val tries = if (widget == "glance" || widget == "multi") {
             listOf(4 to 2, 4 to 1, 2 to 2, 2 to 1, 1 to 1)
         } else {
             listOf(2 to 2, 1 to 1)
@@ -3626,6 +3922,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             spanX = placed.third.first.toFloat(),
             spanY = placed.third.second.toFloat(),
         )
+        if (widget == "multi") {
+            multiBoards = multiBoards + (item.id to MultiBoard())
+            store.multiBoards = multiBoards
+        }
         replacePage(homePageIndex, page.copy(items = page.items + item))
         widgetPickerOpen = false
         enterWidgetEdit(item.id)
@@ -3648,23 +3948,26 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun addInstalledWidget(info: AppWidgetProviderInfo) {
-        val page = homePages.getOrNull(homePageIndex) ?: return
-        if (page.kind != HomePageKind.EMPTY) {
-            showToast("Widgets go on an empty page")
-            return
+        pendingMultiHostId = multiWidgetPickHost
+        if (pendingMultiHostId == null) {
+            val page = homePages.getOrNull(homePageIndex) ?: return
+            if (page.kind != HomePageKind.EMPTY) {
+                showToast("Widgets go on an empty page")
+                return
+            }
+            val span = spansFor(info)
+            val cell = firstEmptyCell(page, span.first, span.second)
+                ?: firstEmptyCell(page, 1, 1)
+            if (cell == null) {
+                showToast("No space on this page")
+                return
+            }
+            pendingPlaceCol = cell.first
+            pendingPlaceRow = cell.second
+            pendingAppWidgetSpan = span
         }
-        val span = spansFor(info)
-        val cell = firstEmptyCell(page, span.first, span.second)
-            ?: firstEmptyCell(page, 1, 1)
-        if (cell == null) {
-            showToast("No space on this page")
-            return
-        }
-        pendingPlaceCol = cell.first
-        pendingPlaceRow = cell.second
         val id = widgetHost.allocateAppWidgetId()
         pendingAppWidgetId = id
-        pendingAppWidgetSpan = span
         val bound = if (Build.VERSION.SDK_INT >= 17) {
             widgetManager.bindAppWidgetIdIfAllowed(id, info.provider)
         } else {
@@ -3720,6 +4023,23 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private fun placePendingAppWidget() {
         val id = pendingAppWidgetId
         if (id == AppWidgetManager.INVALID_APPWIDGET_ID) return
+        val host = pendingMultiHostId
+        if (host != null) {
+            val info = widgetManager.getAppWidgetInfo(id)
+            val slot = MultiSlot(
+                kind = "app",
+                appWidgetId = id,
+                label = info?.loadLabel(app.packageManager)?.toString().orEmpty().ifBlank { "Widget" },
+                box = GlanceBox(0.04f, 0.04f, 0.7f, 0.45f),
+            )
+            patchMulti(host) { it.copy(slots = it.slots + slot) }
+            pendingAppWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
+            pendingMultiHostId = null
+            multiWidgetPickHost = null
+            widgetPickerOpen = false
+            showToast("Widget added — drag it in the preview to place and resize")
+            return
+        }
         val page = homePages.getOrNull(homePageIndex) ?: run {
             cancelPendingAppWidget()
             return
@@ -4571,7 +4891,19 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private fun removeHomeItem(id: String) {
         val idx = homePageIndex.coerceIn(0, homePages.lastIndex)
         val page = homePages[idx]
-        page.items.firstOrNull { it.id == id }?.let { deleteAppWidgetIfNeeded(it) }
+        page.items.firstOrNull { it.id == id }?.let { item ->
+            deleteAppWidgetIfNeeded(item)
+            if (item.widget == "multi") {
+                multiBoardFor(item.id).slots.forEach { slot ->
+                    if (slot.kind == "app" && slot.appWidgetId != 0) {
+                        runCatching { widgetHost.discardHostView(slot.appWidgetId) }
+                        runCatching { widgetHost.deleteAppWidgetId(slot.appWidgetId) }
+                    }
+                }
+                multiBoards = multiBoards - item.id
+                store.multiBoards = multiBoards
+            }
+        }
         replacePage(idx, page.copy(items = page.items.filterNot { it.id == id }))
     }
 
@@ -4732,7 +5064,14 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         val preferred = store.commandPreferred(kind.name)
         val hidden = store.commandHidden(kind.name)
         val order = store.commandOrder(kind.name)
-        val ranked = DefaultCommandApps.arrange(list, defaultPkg, preferred, hidden, order)
+        val ranked = DefaultCommandApps.arrange(
+            apps = list,
+            defaultPackage = defaultPkg,
+            preferredPackage = preferred,
+            hidden = hidden,
+            order = order,
+            pinDefault = false,
+        )
         @Suppress("UNUSED_VARIABLE")
         val observed = observeCommands
         if (filter.isBlank()) return ranked
@@ -4748,7 +5087,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun matchingLaunchApps(query: String): List<LaunchableApp> {
         val q = query.trim()
-        if (q.length < 2 || q.startsWith(":") || q.startsWith("!")) return emptyList()
+        if (q.length < 2 || CommandDetector.isSymbolFilter(q) || q.startsWith("!")) return emptyList()
         return AppFuzzy.rank(q, apps, limit = 8, cutoff = 56) { app ->
             "${app.label} ${app.packageName}"
         }
@@ -4827,6 +5166,248 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         actionQuery = ""
     }
 
+    private fun beginComposeAddon(kind: ActionAppKind) {
+        composeContact = null
+        contactLookupActive = false
+        calcMode = false
+        stickyCompose = false
+        spaceAddon = null
+        spaceShortcutId = null
+        pendingUserShortcutPkg = null
+        searchScope = null
+        actionQuery = ""
+        recipientQuery = ""
+        callContactQuery = ""
+        if (kind == ActionAppKind.Translator) {
+            translateFromCode = null
+            translateToCode = null
+        }
+        val apps = if (kind == ActionAppKind.Messaging || kind == ActionAppKind.Email) {
+            installedForAt("")
+        } else {
+            installedFor(kind, "")
+        }
+        val app = apps.firstOrNull()
+        if (app == null) {
+            composeKind = kind
+            composeApp = null
+            if (kind == ActionAppKind.VoiceCall || kind == ActionAppKind.VideoCall ||
+                kind == ActionAppKind.Messaging || kind == ActionAppKind.Email
+            ) {
+                refreshContacts()
+            }
+            showToast("No apps for that command")
+            return
+        }
+        commitListFirstApp(kind, app)
+    }
+
+    /** Word+Space: bind the first app in that command’s edited list. */
+    private fun commitListFirstApp(kind: ActionAppKind, app: InstalledActionApp) {
+        when (kind) {
+            ActionAppKind.Messaging, ActionAppKind.Email -> pickAtApp(app)
+            ActionAppKind.Social -> pickApp(ActionAppKind.Social, app)
+            ActionAppKind.VoiceCall -> pickCallApp(ActionAppKind.VoiceCall, app, "")
+            ActionAppKind.VideoCall -> pickCallApp(ActionAppKind.VideoCall, app, "")
+            ActionAppKind.Ai, ActionAppKind.Nav, ActionAppKind.Notes,
+            ActionAppKind.Translator, ActionAppKind.Contacts,
+            -> {
+                composeKind = kind
+                composeApp = app
+                composeContact = null
+            }
+        }
+    }
+
+    fun beginCommonAddon(shortcut: CommonAppShortcut, payload: String = "") {
+        stickyCompose = false
+        spaceShortcutId = shortcut.id
+        spaceAddon = shortcut.addon
+        when (shortcut.addon) {
+            SpaceAddon.CALC -> {
+                calcMode = true
+                actionQuery = payload
+                instantAnswer = null
+            }
+            SpaceAddon.SEARCH -> {
+                val app = resolveCommonApp(shortcut)
+                if (app == null) {
+                    spaceAddon = null
+                    spaceShortcutId = null
+                    showToast("${shortcut.label} isn't installed")
+                    actionQuery = ""
+                    return
+                }
+                pickSearchScope(resolvedSearchFor(shortcut, app))
+                if (payload.isNotBlank()) actionQuery = payload
+            }
+            SpaceAddon.NAV -> {
+                composeKind = ActionAppKind.Nav
+                actionQuery = payload
+            }
+            SpaceAddon.NOTE -> {
+                composeKind = ActionAppKind.Notes
+                resolveActionApp(shortcut, ActionAppKind.Notes)?.let { composeApp = it }
+                actionQuery = payload
+            }
+            SpaceAddon.CALL -> {
+                val app = resolveActionApp(shortcut, ActionAppKind.VoiceCall)
+                if (app != null) {
+                    pickApp(ActionAppKind.VoiceCall, app)
+                    if (payload.isNotBlank()) callContactQuery = payload
+                } else {
+                    spaceAddon = null
+                    spaceShortcutId = null
+                    showToast("${shortcut.label} isn't installed")
+                    actionQuery = ""
+                }
+            }
+            SpaceAddon.CHAT -> {
+                val app = resolveActionApp(shortcut, ActionAppKind.Messaging)
+                if (app != null) {
+                    pickAtApp(app)
+                    if (payload.isNotBlank()) {
+                        recipientQuery = payload
+                        refreshContacts()
+                    }
+                } else {
+                    spaceAddon = null
+                    spaceShortcutId = null
+                    showToast("${shortcut.label} isn't installed")
+                    actionQuery = ""
+                }
+            }
+            SpaceAddon.EMAIL -> {
+                val app = resolveActionApp(shortcut, ActionAppKind.Email)
+                if (app != null) {
+                    pickApp(ActionAppKind.Email, app)
+                    if (payload.isNotBlank()) {
+                        recipientQuery = payload
+                        refreshContacts()
+                    }
+                } else {
+                    spaceAddon = null
+                    spaceShortcutId = null
+                    showToast("${shortcut.label} isn't installed")
+                    actionQuery = ""
+                }
+            }
+            SpaceAddon.CONTACTS -> {
+                contactLookupActive = true
+                composeKind = null
+                actionQuery = payload
+                recipientQuery = payload
+                refreshContacts()
+            }
+            SpaceAddon.REMINDER, SpaceAddon.SCHEDULE, SpaceAddon.OPEN -> {
+                actionQuery = payload
+            }
+            SpaceAddon.TRANSLATE -> {
+                composeKind = ActionAppKind.Translator
+                translateFromCode = null
+                translateToCode = null
+                actionQuery = payload
+            }
+            SpaceAddon.AI -> {
+                composeKind = ActionAppKind.Ai
+                resolveActionApp(shortcut, ActionAppKind.Ai)?.let { composeApp = it }
+                actionQuery = payload
+            }
+        }
+    }
+
+    private fun resolveCommonApp(shortcut: CommonAppShortcut): LaunchableApp? {
+        val allowed = apps.filter { !WeatherLaunchGuard.isBlocked(it.packageName) }
+        allowed.firstOrNull { it.packageName in shortcut.packages }
+            ?.let { return it }
+        allowed.firstOrNull { app ->
+            shortcut.labels.any { lab -> app.label.equals(lab, ignoreCase = true) }
+        }?.let { return it }
+        val fromCategory = categoryPackage(shortcut.category) ?: return null
+        return allowed.firstOrNull { it.packageName == fromCategory }
+    }
+
+    private fun categoryPackage(category: String?): String? {
+        val cat = category?.takeIf { it.isNotBlank() } ?: return null
+        val intent = Intent(Intent.ACTION_MAIN).addCategory(cat)
+        val ri = runCatching {
+            getApplication<Application>().packageManager.resolveActivity(
+                intent,
+                PackageManager.MATCH_DEFAULT_ONLY,
+            )
+        }.getOrNull() ?: return null
+        val pkg = ri.activityInfo?.packageName ?: return null
+        if (WeatherLaunchGuard.isBlocked(pkg)) return null
+        return pkg
+    }
+
+    private fun resolveActionApp(shortcut: CommonAppShortcut, kind: ActionAppKind): InstalledActionApp? {
+        val launch = resolveCommonApp(shortcut) ?: return null
+        return actionApps.find(kind, launch.packageName)
+            ?: actionApps.resolvePackage(launch.packageName)
+    }
+
+    private fun resolvedSearchFor(shortcut: CommonAppShortcut, app: LaunchableApp): ResolvedSearchApp {
+        searchableApps.firstOrNull { it.app.packageName == app.packageName }?.let { return it }
+        val def = SearchableApps.catalog.firstOrNull { cat ->
+            cat.packages.any { it in shortcut.packages }
+        } ?: SearchableAppDef(
+            appName = shortcut.label,
+            displayName = shortcut.label,
+            keywords = shortcut.phrases,
+            color = 0xFF81A1C1,
+            packages = listOf(app.packageName),
+            siteSearch = false,
+            searchUrl = { "" },
+        )
+        val ctx = getApplication<Application>()
+        return ResolvedSearchApp(
+            def,
+            app,
+            searchComponent = SearchableApps.findSearchComponent(ctx, app.packageName),
+        )
+    }
+
+    private fun runCommonShortcut(cmd: ActionCommand.OpenCommonApp) {
+        val shortcut = CommonAppShortcuts.byId(cmd.shortcutId) ?: return
+        val payload = cmd.payload.trim()
+        if (payload.isEmpty()) {
+            launchCommonApp(shortcut)
+            return
+        }
+        beginCommonAddon(shortcut, payload)
+        when (shortcut.addon) {
+            SpaceAddon.SEARCH -> if (actionQuery.isNotBlank()) searchInScope()
+            SpaceAddon.NAV -> {
+                val dest = CommandDetector.stripNavToPrefix(payload)
+                val navApps = installedFor(ActionAppKind.Nav, "")
+                val preferred = store.commandPreferred(ActionAppKind.Nav.name)
+                val system = systemDefaultPackage(ActionAppKind.Nav)
+                val target = navApps.firstOrNull { it.packageName == preferred }
+                    ?: navApps.firstOrNull { it.packageName == system }
+                    ?: navApps.singleOrNull()
+                    ?: resolveActionApp(shortcut, ActionAppKind.Nav)
+                if (target != null) navigateWith(target, dest)
+                else showToast("No maps app installed")
+            }
+            SpaceAddon.CALC, SpaceAddon.CALL, SpaceAddon.CHAT, SpaceAddon.EMAIL,
+            SpaceAddon.CONTACTS, SpaceAddon.REMINDER, SpaceAddon.SCHEDULE,
+            SpaceAddon.TRANSLATE, SpaceAddon.AI, SpaceAddon.NOTE,
+            -> Unit
+            SpaceAddon.OPEN -> launchCommonApp(shortcut)
+        }
+    }
+
+    private fun launchCommonApp(shortcut: CommonAppShortcut) {
+        val app = resolveCommonApp(shortcut)
+        if (app == null) {
+            showToast("${shortcut.label} isn't installed")
+            return
+        }
+        launchApp(app)
+        closeActionBox()
+    }
+
     fun clearSearchScope() {
         searchScope = null
     }
@@ -4885,7 +5466,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun runCustomBang(bang: CustomBang, query: String) {
         if (bang.searchUrl.isNotBlank()) {
-            val url = CustomBang.applyUrl(bang.searchUrl, query)
+            val url = DuckDuckGoApp.tag(CustomBang.applyUrl(bang.searchUrl, query))
             runCatching {
                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -4903,6 +5484,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun matchingBangCatalog(filter: String, limit: Int = 0): List<BangEntry> {
+        if (appearanceSettings.webSearchEngine != WebSearchEngine.DUCKDUCKGO) return emptyList()
         bangCatalogRev
         return BangCatalog.search(filter, limit)
     }
@@ -4913,7 +5495,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun runCatalogBang(entry: BangEntry, query: String) {
-        val url = BangCatalog.apply(entry, query)
+        val url = DuckDuckGoApp.tag(BangCatalog.apply(entry, query))
         runCatching {
             val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -4927,7 +5509,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun runWebBang(def: com.madlauncher.action.SearchableAppDef, query: String) {
-        val url = def.urlsFor(query).firstOrNull { it.startsWith("http") } ?: run {
+        val url = def.urlsFor(query).firstOrNull { it.startsWith("http") }?.let(DuckDuckGoApp::tag) ?: run {
             showToast("Couldn't open ${def.displayName}")
             return
         }
@@ -5068,6 +5650,85 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         pickApp(kind, app)
     }
 
+    /** Symbol-filter tap: open the app as if Enter on a common-app shortcut. */
+    fun launchActionApp(app: InstalledActionApp) {
+        val launchable = apps.firstOrNull { it.packageName == app.packageName }
+        if (launchable != null) {
+            launchApp(launchable)
+            closeActionBox()
+            return
+        }
+        val ctx = getApplication<Application>()
+        val intent = ctx.packageManager.getLaunchIntentForPackage(app.packageName)
+            ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (intent != null) {
+            runCatching { ctx.startActivity(intent) }
+                .onSuccess { closeActionBox() }
+                .onFailure { showToast("Couldn't open ${app.name}") }
+        } else {
+            showToast("Couldn't open ${app.name}")
+        }
+    }
+
+    /** Symbol-filter long-press: the same Space addon as `gm ` / `wa `. */
+    fun spaceActionForFilter(kind: ActionAppKind, app: InstalledActionApp) {
+        actionQuery = ""
+        val shortcut = CommonAppShortcuts.byPackage(app.packageName)
+        if (shortcut != null) {
+            beginCommonAddon(shortcut)
+            return
+        }
+        when (kind) {
+            ActionAppKind.Messaging, ActionAppKind.Email -> pickAtApp(app)
+            ActionAppKind.Social -> pickApp(ActionAppKind.Social, app)
+            ActionAppKind.VoiceCall -> pickCallApp(ActionAppKind.VoiceCall, app, "")
+            ActionAppKind.VideoCall -> pickCallApp(ActionAppKind.VideoCall, app, "")
+            ActionAppKind.Ai -> {
+                composeKind = ActionAppKind.Ai
+                composeApp = app
+                actionQuery = ""
+            }
+            else -> launchActionApp(app)
+        }
+    }
+
+    /** `@ ` / `# ` / `: ` / `* ` / `? ` — Space addon on the first app in the edited list. */
+    private fun commitSymbolFirstApp(symbol: String) {
+        val kind = when (symbol) {
+            "@" -> ActionAppKind.Messaging
+            "#" -> ActionAppKind.VoiceCall
+            ":", "：" -> ActionAppKind.Social
+            "*" -> ActionAppKind.VideoCall
+            "?" -> ActionAppKind.Ai
+            else -> return
+        }
+        val apps = if (symbol == "@") installedForAt("") else installedFor(kind, "")
+        val app = apps.firstOrNull()
+        if (app == null) {
+            showToast("No apps for that command")
+            actionQuery = ""
+            return
+        }
+        val resolvedKind = if (symbol == "@" && actionApps.find(ActionAppKind.Email, app.packageName) != null) {
+            ActionAppKind.Email
+        } else {
+            kind
+        }
+        spaceActionForFilter(resolvedKind, app)
+    }
+
+    private fun launchOrPromptFilter(
+        apps: List<InstalledActionApp>,
+        empty: String,
+        pick: String,
+    ) {
+        when {
+            apps.size == 1 -> launchActionApp(apps.first())
+            apps.isEmpty() -> showToast(empty)
+            else -> showToast(pick)
+        }
+    }
+
     fun installedForAt(filter: String): List<InstalledActionApp> {
         val seen = linkedSetOf<String>()
         return buildList {
@@ -5157,6 +5818,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         recipientQuery = ""
         contactLookupActive = false
         calcMode = false
+        spaceAddon = null
+        spaceShortcutId = null
+        stickyCompose = false
         pendingUserShortcutPkg = null
         translateFromCode = null
         translateToCode = null
@@ -5229,6 +5893,72 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun pinCurrency() {
+        val request = LiveRates.currencyRequest(actionQuery.trim().removeSuffix("=").trim())
+        if (request == null) {
+            showToast("Type an amount and two currencies")
+            return
+        }
+        if (boxedConversions.none { it.code == request.to } && boxedConversions.size >= 3) {
+            showToast("3 conversions already")
+            return
+        }
+        val epoch = ++conversionEpoch
+        viewModelScope.launch {
+            val hit = withContext(Dispatchers.IO) { LiveRates.currency(request.query) }
+            if (hit == null || hit.text.isBlank()) {
+                showToast("Couldn't convert")
+                return@launch
+            }
+            if (epoch != conversionEpoch) return@launch
+            val row = BoxedConversion(
+                code = request.to,
+                label = conversionLabel(request.amount, request.from, request.to),
+                text = hit.text,
+            )
+            conversionEpoch++
+            val index = boxedConversions.indexOfFirst { it.code == request.to }
+            boxedConversions = if (index >= 0) {
+                boxedConversions.toMutableList().also { it[index] = row }
+            } else {
+                boxedConversions + row
+            }
+        }
+    }
+
+    private fun consumeCurrencyEquals(value: String): Boolean {
+        val trimmed = value.trim()
+        if (trimmed.length < 2 || !trimmed.endsWith("=")) return false
+        val body = trimmed.removeSuffix("=").trim()
+        if (LiveRates.currencyRequest(body) == null) return false
+        actionQuery = body
+        pinCurrency()
+        scheduleInstantAnswer(body)
+        return true
+    }
+
+    private fun conversionLabel(amount: Double, from: String, to: String): String {
+        val number = if (amount % 1.0 == 0.0) amount.toLong().toString() else amount.toString()
+        return "$number $from → $to"
+    }
+
+    fun continueWithAnswer() {
+        val next = instantAnswer?.continueValue?.takeIf { it.isNotBlank() } ?: return
+        calcMode = true
+        onQueryChange(next)
+    }
+
+    private fun continueInstant(value: String): String? {
+        val card = instantAnswer ?: return null
+        val next = card.continueValue?.takeIf { it.isNotBlank() } ?: return null
+        val trimmed = value.trim()
+        if (trimmed == "=") return next
+        if (!trimmed.endsWith("=")) return null
+        val base = trimmed.removeSuffix("=").trim()
+        if (base.equals(card.heading.trim(), ignoreCase = true)) return next
+        return null
+    }
+
     fun evaluateCalc() {
         calcMode = true
         val q = actionQuery.trimEnd()
@@ -5247,7 +5977,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun onQueryChange(value: String) {
         if (value.isNotBlank()) commandPickerOpen = false
-        val continued = CalcParser.continueFromEquals(value) ?: run {
+        if (value.isBlank()) boxedConversions = emptyList()
+        if (consumeCurrencyEquals(value)) return
+        val continued = CalcParser.continueFromEquals(value) ?: continueInstant(value) ?: run {
             if (value.trim() == "=") {
                 (command as? ActionCommand.Calc)?.let { CalcParser.continueValue(it.result) }
             } else {
@@ -5260,42 +5992,85 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             scheduleInstantAnswer(continued)
             return
         }
+        if (consumeTranslateEquals(value)) return
         // Commit tokens with trailing space → clear field for the payload body.
         if (composeApp == null && composeContact == null) {
             when {
+                !calcMode && CommonAppShortcuts.matchSpaceCommit(value) != null -> {
+                    beginCommonAddon(CommonAppShortcuts.matchSpaceCommit(value)!!)
+                    return
+                }
                 !calcMode && CommandAliases.isCalcCommit(value) -> {
                     calcMode = true
                     actionQuery = ""
                     instantAnswer = null
                     return
                 }
-                composeKind != ActionAppKind.Translator && CommandAliases.isTranslateCommit(value) -> {
-                    composeKind = ActionAppKind.Translator
-                    translateFromCode = null
-                    translateToCode = null
+                CommandAliases.isSymbolShortcutCommit(value) -> {
+                    commitSymbolFirstApp(value.trimEnd())
+                    return
+                }
+                composeKind != ActionAppKind.Messaging &&
+                    composeKind != ActionAppKind.Email &&
+                    CommandAliases.isChatCommit(value) -> {
+                    beginComposeAddon(ActionAppKind.Messaging)
+                    return
+                }
+                composeKind != ActionAppKind.Social && CommandAliases.isSocialCommit(value) -> {
+                    beginComposeAddon(ActionAppKind.Social)
+                    return
+                }
+                composeKind != ActionAppKind.VoiceCall && CommandAliases.isCallCommit(value) -> {
+                    beginComposeAddon(ActionAppKind.VoiceCall)
+                    return
+                }
+                composeKind != ActionAppKind.VideoCall && CommandAliases.isVideoCommit(value) -> {
+                    beginComposeAddon(ActionAppKind.VideoCall)
+                    return
+                }
+                !stickyCompose && CommandAliases.isStickyCommit(value) -> {
+                    stickyCompose = true
+                    composeKind = null
+                    composeApp = null
+                    spaceAddon = null
+                    spaceShortcutId = null
                     actionQuery = ""
+                    return
+                }
+                spaceAddon != SpaceAddon.REMINDER && CommandAliases.isReminderCommit(value) -> {
+                    spaceAddon = SpaceAddon.REMINDER
+                    spaceShortcutId = null
+                    composeKind = null
+                    stickyCompose = false
+                    actionQuery = ""
+                    return
+                }
+                spaceAddon != SpaceAddon.SCHEDULE && CommandAliases.isScheduleCommit(value) -> {
+                    spaceAddon = SpaceAddon.SCHEDULE
+                    spaceShortcutId = null
+                    composeKind = null
+                    stickyCompose = false
+                    actionQuery = ""
+                    return
+                }
+                composeKind != ActionAppKind.Translator && CommandAliases.isTranslateCommit(value) -> {
+                    beginComposeAddon(ActionAppKind.Translator)
                     return
                 }
                 composeKind != ActionAppKind.Notes && CommandAliases.isNotesCommit(value) -> {
-                    composeKind = ActionAppKind.Notes
-                    actionQuery = ""
+                    beginComposeAddon(ActionAppKind.Notes)
                     return
                 }
                 composeKind != ActionAppKind.Ai && CommandAliases.isAiCommit(value) -> {
-                    composeKind = ActionAppKind.Ai
-                    contactLookupActive = false
-                    actionQuery = ""
+                    beginComposeAddon(ActionAppKind.Ai)
                     return
                 }
                 composeKind != ActionAppKind.Nav && CommandAliases.isNavCommit(value) -> {
-                    composeKind = ActionAppKind.Nav
-                    actionQuery = ""
+                    beginComposeAddon(ActionAppKind.Nav)
                     return
                 }
                 composeKind != ActionAppKind.Contacts && CommandAliases.isAddContactCommit(value) -> {
-                    composeKind = ActionAppKind.Contacts
-                    pendingUserShortcutPkg = null
-                    actionQuery = ""
+                    beginComposeAddon(ActionAppKind.Contacts)
                     return
                 }
                 !calcMode && pendingUserShortcutPkg == null && CommandAliases.isUserShortcutCommit(value) -> {
@@ -5395,10 +6170,48 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         instantAnswerJob = viewModelScope.launch {
             delay(380)
             if (actionQuery.trim() != query.trim()) return@launch
-            val hit = withContext(Dispatchers.IO) { InstantAnswerClient.fetch(query) }
-            if (actionQuery.trim() == query.trim()) instantAnswer = hit
+            val hit = withContext(Dispatchers.IO) {
+                val place = DevicePlaceFinder.current(getApplication(), grants.location)
+                LiveRates.priceCountry = place.country
+                LiveRates.priceLabel = place.label.ifBlank { place.countryName }
+                LiveRates.useDuckDuckGo =
+                    appearanceSettings.webSearchEngine == WebSearchEngine.DUCKDUCKGO
+                InstantAnswerClient.fetch(query)
+            }
+            if (actionQuery.trim() == query.trim()) {
+                instantAnswer = hit
+                refreshBoxedConversions(query)
+            }
         }
     }
+
+    private fun refreshBoxedConversions(query: String) {
+        val request = LiveRates.currencyRequest(query) ?: return
+        viewModelScope.launch {
+            val pins = boxedConversions
+            val epoch = conversionEpoch
+            if (pins.isEmpty()) return@launch
+            val rows = withContext(Dispatchers.IO) {
+                pins.map { row ->
+                    val rewritten = "${trimAmount(request.amount)} ${request.from.lowercase()} to ${row.code.lowercase()}"
+                    val hit = LiveRates.currency(rewritten)
+                    if (hit == null || hit.text.isBlank()) {
+                        row
+                    } else {
+                        row.copy(
+                            label = conversionLabel(request.amount, request.from, row.code),
+                            text = hit.text,
+                        )
+                    }
+                }
+            }
+            if (epoch != conversionEpoch) return@launch
+            if (LiveRates.currencyRequest(actionQuery) != null) boxedConversions = rows
+        }
+    }
+
+    private fun trimAmount(amount: Double): String =
+        if (amount % 1.0 == 0.0) amount.toLong().toString() else amount.toString()
 
     fun openInstantAnswer() {
         val url = instantAnswer?.url?.trim().orEmpty()
@@ -5414,18 +6227,162 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         runPrimaryAction()
     }
 
-    fun requestOnDeviceTranslate(text: String, fromCode: String?, toCode: String?) {
-        onDeviceTranslateJob?.cancel()
-        if (!InstantModules.isEnabled(InstantModules.TRANSLATE) || text.isBlank() || toCode.isNullOrBlank()) {
-            onDeviceTranslate = OnDeviceTranslateUi.Idle
+    fun pinTranslation() {
+        val parsed = parsedTranslate(actionQuery)
+        val code = parsed.toCode ?: translateToCode
+        val source = parsed.text.trim()
+        if (source.isBlank()) {
+            showToast("Type text to translate first")
             return
         }
-        onDeviceTranslate = OnDeviceTranslateUi.Working("Translating…")
-        onDeviceTranslateJob = viewModelScope.launch {
+        if (code.isNullOrBlank()) {
+            showToast("Pick a language")
+            return
+        }
+        if (boxedTranslations.none { it.code == code } && boxedTranslations.size >= 3) {
+            showToast("3 translations already")
+            return
+        }
+        pinRequestedCode = code
+        scheduleTranslatePreview(source, parsed.fromCode, code)
+    }
+
+    private fun consumeTranslateEquals(value: String): Boolean {
+        val trimmed = value.trim()
+        if (trimmed.length < 2 || !trimmed.endsWith("=")) return false
+        val body = trimmed.removeSuffix("=").trimEnd()
+        val inTranslate = composeKind == ActionAppKind.Translator ||
+            CommandDetector.detect(body) is ActionCommand.Translate ||
+            CommandDetector.detect(trimmed) is ActionCommand.Translate
+        if (!inTranslate) return false
+        actionQuery = body
+        pinTranslation()
+        return true
+    }
+
+    fun scheduleTranslatePreview(text: String, fromCode: String?, toCode: String?) {
+        translatePreviewJob?.cancel()
+        val trimmed = text.trim()
+        if (trimmed.isBlank()) {
+            translatePreview = null
+            translatePreviewBusy = false
+            boxedTranslations = emptyList()
+            pinRequestedCode = null
+            return
+        }
+        val pins = boxedTranslations
+        translatePreviewBusy = true
+        translatePreviewJob = viewModelScope.launch {
             delay(280)
-            onDeviceTranslate = OnDeviceTranslateUi.Working("Downloading language if needed…")
-            val result = OnDeviceTranslator.translate(text, fromCode, toCode)
-            onDeviceTranslate = result
+            val shown = withContext(Dispatchers.IO) {
+                LiveRates.translate(trimmed, fromCode, toCode)
+                    ?: offlineTranslation(trimmed, fromCode, toCode)
+            }
+            val refreshed = pins.map { pin ->
+                if (pin.code == toCode && !shown.isNullOrBlank()) {
+                    pin.copy(text = shown)
+                } else {
+                    val updated = withContext(Dispatchers.IO) {
+                        LiveRates.translate(trimmed, fromCode, pin.code)
+                            ?: offlineTranslation(trimmed, fromCode, pin.code)
+                    }
+                    if (updated.isNullOrBlank()) pin else pin.copy(text = updated)
+                }
+            }
+            translatePreview = shown
+            var nextPins = refreshed
+            val pinCode = pinRequestedCode
+            if (pinCode != null && pinCode == toCode && !shown.isNullOrBlank()) {
+                val label = TranslateCommandParser.label(pinCode) ?: pinCode
+                val row = BoxedTranslation(pinCode, label, shown)
+                val index = nextPins.indexOfFirst { it.code == pinCode }
+                nextPins = if (index >= 0) {
+                    nextPins.toMutableList().also { it[index] = row }
+                } else {
+                    nextPins + row
+                }
+                pinRequestedCode = null
+            }
+            if (pinCode != null && pinCode == toCode && shown.isNullOrBlank()) {
+                pinRequestedCode = null
+                showToast("Couldn't translate")
+            }
+            boxedTranslations = nextPins
+            translatePreviewBusy = false
+        }
+    }
+
+    private suspend fun offlineTranslation(text: String, fromCode: String?, toCode: String?): String? {
+        if (OfflinePack.TRANSLATE !in offlineModules) return null
+        val result = OnDeviceTranslator.translate(text, fromCode, toCode)
+        return (result as? OnDeviceTranslateUi.Done)?.text
+    }
+
+    fun copyTranslatePreview() {
+        val text = translatePreview?.trim().orEmpty()
+        if (text.isBlank()) {
+            showToast("Translating…")
+            return
+        }
+        copyText(text)
+        showToast("Copied")
+    }
+
+    fun setOfflineModule(id: String, enabled: Boolean) {
+        if (offlineModuleBusy != null) return
+        if (!enabled) {
+            saveOfflineModules(offlineModules - id)
+            return
+        }
+        when (id) {
+            OfflinePack.CURRENCY -> downloadCurrencyModule()
+            OfflinePack.TRANSLATE -> downloadTranslateModule()
+            else -> saveOfflineModules(offlineModules + id)
+        }
+    }
+
+    private fun saveOfflineModules(ids: Set<String>) {
+        offlineModules = ids
+        store.offlineModuleIds = ids
+        store.offlinePackReady = OfflinePack.CURRENCY in ids || OfflinePack.TRANSLATE in ids
+        offlinePackReady = store.offlinePackReady
+        applyOfflineModules()
+    }
+
+    private fun applyOfflineModules() {
+        InstantModules.enabledIds = offlineModules
+        LiveRates.offlineRatesJson = store.offlineCurrencyJson
+            .takeIf { OfflinePack.CURRENCY in offlineModules && it.isNotBlank() }
+    }
+
+    private fun downloadCurrencyModule() {
+        offlineModuleBusy = OfflinePack.CURRENCY
+        viewModelScope.launch {
+            val saved = withContext(Dispatchers.IO) { OfflinePack.download(getApplication()) }
+            offlineModuleBusy = null
+            saved.onSuccess { pack ->
+                store.offlineCurrencyJson = pack.currencyJson
+                saveOfflineModules(offlineModules + OfflinePack.CURRENCY)
+                showToast("Currency rates saved")
+            }.onFailure {
+                showToast(it.message ?: "Couldn't download currency rates")
+            }
+        }
+    }
+
+    private fun downloadTranslateModule() {
+        offlineModuleBusy = OfflinePack.TRANSLATE
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                OnDeviceTranslator.translate("hello", "en", "es")
+            }
+            offlineModuleBusy = null
+            if (result is OnDeviceTranslateUi.Error) {
+                showToast(result.message.ifBlank { "Couldn't download translation" })
+                return@launch
+            }
+            saveOfflineModules(offlineModules + OfflinePack.TRANSLATE)
+            showToast("Offline translation ready")
         }
     }
 
@@ -5497,24 +6454,18 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         val app = composeApp
         val kind = composeKind
         val contact = composeContact
-        val inlineSearch = SearchableApps.parseInlineSearch(actionQuery, searchableApps)
-        val catalogBang = BangCatalog.match(actionQuery)
-        val curatedInline = inlineSearch?.takeIf { !it.first.def.discovered }
-        val webBang = if (curatedInline == null && catalogBang == null) {
+        val catalogBang = if (appearanceSettings.webSearchEngine != WebSearchEngine.DUCKDUCKGO) {
+            null
+        } else {
+            BangCatalog.match(actionQuery)
+        }
+        val webBang = if (catalogBang == null) {
             SearchableApps.parseWebBang(actionQuery, searchableApps)
         } else {
             null
         }
         when {
-            curatedInline != null -> {
-                val (searchApp, q) = curatedInline
-                runInlineAppSearch(searchApp, q)
-            }
             catalogBang != null -> runCatalogBang(catalogBang.first, catalogBang.second)
-            inlineSearch != null -> {
-                val (searchApp, q) = inlineSearch
-                runInlineAppSearch(searchApp, q)
-            }
             webBang != null -> runWebBang(webBang.first, webBang.second)
             searchScope != null && actionQuery.isNotBlank() -> searchInScope()
             app != null && kind == ActionAppKind.Social && actionQuery.isNotBlank() -> {
@@ -5537,6 +6488,21 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             }
             app != null && contact != null && actionQuery.isNotBlank() -> {
                 dispatchMessage(app, contact, actionQuery)
+            }
+            app != null && kind == ActionAppKind.Nav && actionQuery.isNotBlank() -> {
+                navigateWith(app, actionQuery)
+            }
+            app != null && kind == ActionAppKind.Notes && actionQuery.isNotBlank() -> {
+                pickNotesApp(app, actionQuery)
+            }
+            app != null && kind == ActionAppKind.Translator && actionQuery.isNotBlank() -> {
+                pickTranslatorApp(app, actionQuery)
+            }
+            app != null && kind == ActionAppKind.Ai -> {
+                askAi(app, actionQuery)
+            }
+            app != null && kind == ActionAppKind.Contacts && actionQuery.isNotBlank() -> {
+                pickAddContactApp(app, actionQuery)
             }
             cmd is ActionCommand.Call && CommandDetector.isPhoneLike(cmd.query) -> {
                 val app = composeApp
@@ -5566,6 +6532,20 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 }
                 closeActionBox()
             }
+            cmd is ActionCommand.Call && CommandDetector.isSymbolFilter(actionQuery) -> {
+                launchOrPromptFilter(
+                    installedFor(ActionAppKind.VoiceCall, cmd.query),
+                    "No calling apps found",
+                    "Pick a calling app",
+                )
+            }
+            cmd is ActionCommand.VideoCall && CommandDetector.isSymbolFilter(actionQuery) -> {
+                launchOrPromptFilter(
+                    installedFor(ActionAppKind.VideoCall, cmd.query),
+                    "No video-call apps found",
+                    "Pick a video-call app",
+                )
+            }
             cmd is ActionCommand.ContactLookup -> {
                 if (composeContact == null) {
                     if (actionQuery.isBlank() && !contactLookupActive) {
@@ -5585,14 +6565,31 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             }
             cmd is ActionCommand.PostPick -> {
                 val apps = installedFor(ActionAppKind.Social, cmd.filter.trim())
-                when {
-                    apps.size == 1 -> openSocialComposer(apps.first())
-                    apps.isEmpty() -> showToast("No social apps found")
-                    else -> showToast("Pick a social app")
+                if (CommandDetector.isSymbolFilter(actionQuery)) {
+                    launchOrPromptFilter(apps, "No social apps found", "Pick a social app")
+                } else {
+                    when {
+                        apps.size == 1 -> openSocialComposer(apps.first())
+                        apps.isEmpty() -> showToast("No social apps found")
+                        else -> showToast("Pick a social app")
+                    }
+                }
+            }
+            cmd is ActionCommand.ChatPick -> {
+                val apps = installedForAt(cmd.filter)
+                if (CommandDetector.isSymbolFilter(actionQuery)) {
+                    launchOrPromptFilter(apps, "No messaging apps found", "Pick a messaging app")
+                } else {
+                    when {
+                        apps.size == 1 -> pickAtApp(apps.first())
+                        apps.isEmpty() -> showToast("No messaging apps found")
+                        else -> showToast("Pick a messaging app")
+                    }
                 }
             }
             cmd is ActionCommand.QuickCombo -> runQuickCombo(cmd)
             cmd is ActionCommand.OpenApp -> runUserShortcut(cmd.packageName, cmd.payload)
+            cmd is ActionCommand.OpenCommonApp -> runCommonShortcut(cmd)
             cmd is ActionCommand.Help -> {
                 // Command list is already showing in Action Box.
             }
@@ -5625,40 +6622,55 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             cmd is ActionCommand.Note -> saveNote(cmd.text, cmd.floating)
             cmd is ActionCommand.NotePick -> {
                 val apps = installedFor(ActionAppKind.Notes, "")
+                val target = composeApp.takeIf { composeKind == ActionAppKind.Notes } ?: apps.firstOrNull()
                 when {
-                    apps.isEmpty() -> showToast("No notes apps installed")
-                    apps.size == 1 -> pickNotesApp(apps.first(), cmd.text)
-                    else -> showToast("Pick a notes app")
+                    target != null -> pickNotesApp(target, cmd.text)
+                    else -> showToast("No notes apps installed")
                 }
             }
             cmd is ActionCommand.AddContact -> {
                 val apps = installedFor(ActionAppKind.Contacts, "")
-                val target = DefaultCommandApps.pickAddContactTarget(
-                    apps,
-                    systemDefaultPackage(ActionAppKind.Contacts),
-                )
+                val target = composeApp.takeIf { composeKind == ActionAppKind.Contacts }
+                    ?: apps.firstOrNull { ActionApps.isReliableContactInsert(it.packageName) }
                 when {
                     target != null -> pickAddContactApp(target, cmd.details.ifBlank { actionQuery })
-                    apps.none { ActionApps.isReliableContactInsert(it.packageName) } ->
-                        showToast("No contacts apps installed")
-                    else -> showToast("Pick a contacts app")
+                    else -> showToast("No contacts apps installed")
+                }
+            }
+            cmd is ActionCommand.Navigate -> {
+                val dest = cmd.destination.trim().ifBlank { actionQuery.trim() }
+                val apps = installedFor(ActionAppKind.Nav, "")
+                val target = composeApp.takeIf { composeKind == ActionAppKind.Nav } ?: apps.firstOrNull()
+                when {
+                    dest.isBlank() -> showToast("Type a destination")
+                    target != null -> navigateWith(target, dest)
+                    else -> showToast("No maps app installed")
                 }
             }
             cmd is ActionCommand.Translate -> {
                 val apps = installedFor(ActionAppKind.Translator, "")
+                val text = parsedTranslate(actionQuery).text.ifBlank { cmd.tail.trim() }
+                val target = composeApp.takeIf { composeKind == ActionAppKind.Translator } ?: apps.firstOrNull()
                 when {
-                    apps.isEmpty() -> showToast("No translator apps installed")
-                    apps.size == 1 -> pickTranslatorApp(apps.first(), cmd.tail)
-                    else -> showToast("Pick a translator app")
+                    text.isBlank() -> showToast("Type text to translate first")
+                    target != null -> pickTranslatorApp(target, cmd.tail)
+                    else -> copyTranslatePreview()
                 }
             }
             cmd is ActionCommand.AiAsk -> {
-                val apps = installedFor(ActionAppKind.Ai, "")
-                when {
-                    apps.isEmpty() -> showToast("No AI assistants installed")
-                    apps.size == 1 -> askAi(apps.first(), cmd.prompt)
-                    cmd.prompt.isBlank() -> showToast("Pick an AI assistant")
-                    else -> showToast("Pick an AI assistant")
+                if (CommandDetector.isSymbolFilter(actionQuery)) {
+                    launchOrPromptFilter(
+                        installedFor(ActionAppKind.Ai, cmd.prompt),
+                        "No AI assistants installed",
+                        "Pick an AI assistant",
+                    )
+                } else {
+                    val apps = installedFor(ActionAppKind.Ai, "")
+                    val target = composeApp.takeIf { composeKind == ActionAppKind.Ai } ?: apps.firstOrNull()
+                    when {
+                        target != null -> askAi(target, cmd.prompt)
+                        else -> showToast("No AI assistants installed")
+                    }
                 }
             }
             cmd is ActionCommand.Calc -> {

@@ -88,16 +88,17 @@ import com.madlauncher.action.ActionAppKind
 import com.madlauncher.action.AppFuzzy
 import com.madlauncher.action.UserShortcutCombo
 import com.madlauncher.action.UserShortcutKind
-import com.madlauncher.action.OnDeviceTranslateUi
 import com.madlauncher.action.TranslateCommandParser
 import com.madlauncher.action.TranslateLangSlot
 import com.madlauncher.action.CalcResult
 import com.madlauncher.action.CommandDetector
+import com.madlauncher.action.CommonAppShortcuts
+import com.madlauncher.action.SpaceAddon
 import com.madlauncher.action.CustomBang
 import com.madlauncher.action.PlusQuery
 import com.madlauncher.action.InstantAnswer
 import com.madlauncher.action.InstantAnswerClient
-import com.madlauncher.action.InstantModules
+import com.madlauncher.action.LiveRates
 import com.madlauncher.action.ResolvedSearchApp
 import androidx.compose.material.icons.outlined.Calculate
 import androidx.compose.material.icons.outlined.EditNote
@@ -106,6 +107,7 @@ import androidx.compose.material.icons.outlined.Map
 import androidx.compose.material.icons.outlined.Translate
 import com.madlauncher.data.ContactEntry
 import com.madlauncher.data.LaunchableApp
+import com.madlauncher.action.InstalledActionApp
 import com.madlauncher.data.LauncherViewModel
 import com.madlauncher.ui.action.ActionCta
 import com.madlauncher.ui.action.AppViaList
@@ -169,6 +171,7 @@ fun ActionBox(
         cmd is ActionCommand.Translate -> Icons.Outlined.Translate
         cmd is ActionCommand.Navigate -> Icons.Outlined.Map
         cmd is ActionCommand.OpenApp -> Icons.Outlined.Apps
+        cmd is ActionCommand.OpenCommonApp -> Icons.Outlined.Apps
         cmd is ActionCommand.QuickCombo -> when (cmd.combo) {
             UserShortcutCombo.SOCIAL -> Icons.Outlined.Campaign
             UserShortcutCombo.CALL -> Icons.Outlined.Phone
@@ -191,8 +194,16 @@ fun ActionBox(
         vm.composeKind == ActionAppKind.Contacts ||
         vm.composeKind == ActionAppKind.Ai ||
         vm.composeKind == ActionAppKind.Nav ||
+        vm.composeKind == ActionAppKind.Messaging ||
+        vm.composeKind == ActionAppKind.Email ||
+        vm.composeKind == ActionAppKind.Social ||
+        vm.composeKind == ActionAppKind.VoiceCall ||
+        vm.composeKind == ActionAppKind.VideoCall ||
+        vm.stickyCompose ||
         vm.calcMode ||
+        vm.spaceAddon != null ||
         cmd !is ActionCommand.None
+    val symbolFilter = CommandDetector.isSymbolFilter(vm.actionQuery)
     val plainSearch = cmd is ActionCommand.None && vm.composeApp == null &&
         vm.composeContact == null &&
         !vm.contactLookupActive &&
@@ -200,6 +211,12 @@ fun ActionBox(
         vm.composeKind != ActionAppKind.Notes &&
         vm.composeKind != ActionAppKind.Ai &&
         vm.composeKind != ActionAppKind.Nav &&
+        vm.composeKind != ActionAppKind.Messaging &&
+        vm.composeKind != ActionAppKind.Contacts &&
+        vm.composeKind != ActionAppKind.Social &&
+        vm.composeKind != ActionAppKind.VoiceCall &&
+        vm.composeKind != ActionAppKind.VideoCall &&
+        !vm.stickyCompose &&
         !vm.calcMode
 
     val keyboard = LocalSoftwareKeyboardController.current
@@ -280,6 +297,61 @@ fun ActionBox(
                                 onClick = { vm.runPrimaryAction() },
                             )
                         }
+                        vm.composeApp != null && vm.composeKind == ActionAppKind.Nav -> {
+                            ActionCta(
+                                label = if (vm.actionQuery.isBlank()) {
+                                    stringResource(R.string.placeholder_navigate_place)
+                                } else {
+                                    stringResource(R.string.navigate_to_destination, vm.actionQuery)
+                                },
+                                sublabel = vm.composeApp!!.name,
+                                color = vm.composeApp!!.color,
+                                enabled = vm.actionQuery.isNotBlank(),
+                                onClick = { vm.runPrimaryAction() },
+                            )
+                        }
+                        vm.composeApp != null && vm.composeKind == ActionAppKind.Notes -> {
+                            ActionCta(
+                                label = if (vm.actionQuery.isBlank()) {
+                                    stringResource(R.string.placeholder_note_body)
+                                } else {
+                                    stringResource(R.string.note_in_app, vm.composeApp!!.name)
+                                },
+                                sublabel = vm.composeApp!!.name,
+                                color = vm.composeApp!!.color,
+                                enabled = vm.actionQuery.isNotBlank(),
+                                onClick = { vm.runPrimaryAction() },
+                            )
+                        }
+                        vm.composeApp != null && vm.composeKind == ActionAppKind.Contacts -> {
+                            ActionCta(
+                                label = if (vm.actionQuery.isBlank()) {
+                                    stringResource(R.string.action_box_add_contact_empty)
+                                } else {
+                                    stringResource(R.string.add_contact_in_app, vm.composeApp!!.name)
+                                },
+                                sublabel = vm.composeApp!!.name,
+                                color = vm.composeApp!!.color,
+                                enabled = vm.actionQuery.isNotBlank(),
+                                onClick = { vm.runPrimaryAction() },
+                            )
+                        }
+                        vm.composeApp != null && vm.composeKind == ActionAppKind.Ai -> {
+                            ActionCta(
+                                label = if (vm.actionQuery.isBlank()) {
+                                    stringResource(R.string.open_ai_app, vm.composeApp!!.name)
+                                } else {
+                                    stringResource(R.string.ask_ai_app, vm.composeApp!!.name)
+                                },
+                                sublabel = vm.actionQuery.ifBlank { stringResource(R.string.type_ai_prompt) },
+                                color = vm.composeApp!!.color,
+                                enabled = true,
+                                onClick = { vm.runPrimaryAction() },
+                            )
+                        }
+                        vm.composeKind == ActionAppKind.Translator -> {
+                            TranslateStep(vm, ActionCommand.Translate(vm.actionQuery))
+                        }
                         vm.composeApp != null && vm.composeContact != null -> {
                             ActionCta(
                                 label = if (vm.actionQuery.isBlank()) {
@@ -321,71 +393,153 @@ fun ActionBox(
                                 ContactStep(vm = vm, requestContacts = requestContacts)
                             }
                         }
-                        cmd is ActionCommand.ContactLookup -> {
-                            ContactLookupStep(vm, requestContacts)
-                        }
-                        cmd is ActionCommand.ChatPick -> {
+                        vm.composeApp == null &&
+                            (vm.composeKind == ActionAppKind.Messaging ||
+                                vm.composeKind == ActionAppKind.Email) &&
+                            !symbolFilter -> {
                             AppViaList(
                                 stringResource(R.string.at_via),
-                                vm.installedForAt(cmd.filter),
+                                vm.installedForAt(vm.actionQuery),
                                 vm.systemDefaultPackage(ActionAppKind.Messaging)
                                     ?: vm.systemDefaultPackage(ActionAppKind.Email),
                             ) {
                                 vm.pickAtApp(it)
                             }
                         }
+                        vm.composeApp == null && vm.composeKind == ActionAppKind.Social && !symbolFilter -> {
+                            AppViaList(
+                                stringResource(R.string.post_via),
+                                vm.installedFor(ActionAppKind.Social, vm.actionQuery),
+                                vm.systemDefaultPackage(ActionAppKind.Social),
+                            ) {
+                                vm.pickApp(ActionAppKind.Social, it)
+                            }
+                        }
+                        vm.composeApp == null &&
+                            (vm.composeKind == ActionAppKind.VoiceCall ||
+                                vm.composeKind == ActionAppKind.VideoCall) &&
+                            !symbolFilter -> {
+                            CallOrVideoStep(
+                                vm = vm,
+                                query = vm.callContactQuery.ifBlank { vm.actionQuery },
+                                video = vm.composeKind == ActionAppKind.VideoCall,
+                                requestContacts = requestContacts,
+                            )
+                        }
+                        vm.composeApp == null && vm.composeKind == ActionAppKind.Ai && !symbolFilter -> {
+                            AppViaList(
+                                stringResource(R.string.ask_ai_via),
+                                vm.installedFor(ActionAppKind.Ai, ""),
+                                vm.systemDefaultPackage(ActionAppKind.Ai),
+                            ) {
+                                vm.askAi(it, vm.actionQuery)
+                            }
+                        }
+                        cmd is ActionCommand.ContactLookup -> {
+                            ContactLookupStep(vm, requestContacts)
+                        }
+                        cmd is ActionCommand.ChatPick -> {
+                            val atDefault = vm.systemDefaultPackage(ActionAppKind.Messaging)
+                                ?: vm.systemDefaultPackage(ActionAppKind.Email)
+                            if (symbolFilter) {
+                                SymbolFilterList(
+                                    vm = vm,
+                                    title = stringResource(R.string.at_via),
+                                    apps = vm.installedForAt(cmd.filter),
+                                    kind = ActionAppKind.Messaging,
+                                    defaultPackage = atDefault,
+                                )
+                            } else {
+                                AppViaList(
+                                    stringResource(R.string.at_via),
+                                    vm.installedForAt(cmd.filter),
+                                    atDefault,
+                                ) {
+                                    vm.pickAtApp(it)
+                                }
+                            }
+                        }
                         cmd is ActionCommand.AiAsk -> {
-                            val apps = vm.installedFor(ActionAppKind.Ai, "")
-                            when {
-                                apps.isEmpty() -> {
+                            if (symbolFilter) {
+                                val apps = vm.installedFor(ActionAppKind.Ai, cmd.prompt)
+                                if (apps.isEmpty()) {
                                     Text(
                                         stringResource(R.string.no_ai_assistants),
                                         color = LocalMadTheme.current.colors.muted,
                                         fontSize = 13.sp,
                                     )
-                                }
-                                apps.size == 1 -> {
-                                    val app = apps.first()
-                                    ActionCta(
-                                        label = if (cmd.prompt.isBlank() && vm.actionQuery.isBlank()) {
-                                            stringResource(R.string.open_ai_app, app.name)
-                                        } else {
-                                            stringResource(R.string.ask_ai_app, app.name)
-                                        },
-                                        sublabel = vm.actionQuery.ifBlank { cmd.prompt }
-                                            .ifBlank { stringResource(R.string.type_ai_prompt) },
-                                        color = app.color,
-                                        enabled = true,
-                                        onClick = { vm.askAi(app, vm.actionQuery.ifBlank { cmd.prompt }) },
+                                } else {
+                                    SymbolFilterList(
+                                        vm = vm,
+                                        title = stringResource(R.string.ask_ai_via),
+                                        apps = apps,
+                                        kind = ActionAppKind.Ai,
+                                        defaultPackage = vm.systemDefaultPackage(ActionAppKind.Ai),
                                     )
                                 }
-                                else -> {
-                                    if (cmd.prompt.isNotBlank()) {
+                            } else {
+                                val apps = vm.installedFor(ActionAppKind.Ai, "")
+                                when {
+                                    apps.isEmpty() -> {
                                         Text(
-                                            stringResource(R.string.ai_prompt_preview, cmd.prompt),
+                                            stringResource(R.string.no_ai_assistants),
                                             color = LocalMadTheme.current.colors.muted,
-                                            fontSize = 12.sp,
-                                            maxLines = 2,
-                                            overflow = TextOverflow.Ellipsis,
+                                            fontSize = 13.sp,
                                         )
                                     }
-                                    AppViaList(
-                                        stringResource(R.string.ask_ai_via),
-                                        apps,
-                                        vm.systemDefaultPackage(ActionAppKind.Ai),
-                                    ) {
-                                        vm.askAi(it, vm.actionQuery.ifBlank { cmd.prompt })
+                                    apps.size == 1 -> {
+                                        val app = apps.first()
+                                        ActionCta(
+                                            label = if (cmd.prompt.isBlank() && vm.actionQuery.isBlank()) {
+                                                stringResource(R.string.open_ai_app, app.name)
+                                            } else {
+                                                stringResource(R.string.ask_ai_app, app.name)
+                                            },
+                                            sublabel = vm.actionQuery.ifBlank { cmd.prompt }
+                                                .ifBlank { stringResource(R.string.type_ai_prompt) },
+                                            color = app.color,
+                                            enabled = true,
+                                            onClick = { vm.askAi(app, vm.actionQuery.ifBlank { cmd.prompt }) },
+                                        )
+                                    }
+                                    else -> {
+                                        if (cmd.prompt.isNotBlank()) {
+                                            Text(
+                                                stringResource(R.string.ai_prompt_preview, cmd.prompt),
+                                                color = LocalMadTheme.current.colors.muted,
+                                                fontSize = 12.sp,
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                        }
+                                        AppViaList(
+                                            stringResource(R.string.ask_ai_via),
+                                            apps,
+                                            vm.systemDefaultPackage(ActionAppKind.Ai),
+                                        ) {
+                                            vm.askAi(it, vm.actionQuery.ifBlank { cmd.prompt })
+                                        }
                                     }
                                 }
                             }
                         }
                         cmd is ActionCommand.PostPick -> {
-                            AppViaList(
-                                stringResource(R.string.post_via),
-                                vm.installedFor(ActionAppKind.Social, cmd.filter),
-                                vm.systemDefaultPackage(ActionAppKind.Social),
-                            ) {
-                                vm.pickApp(ActionAppKind.Social, it)
+                            if (symbolFilter) {
+                                SymbolFilterList(
+                                    vm = vm,
+                                    title = stringResource(R.string.post_via),
+                                    apps = vm.installedFor(ActionAppKind.Social, cmd.filter),
+                                    kind = ActionAppKind.Social,
+                                    defaultPackage = vm.systemDefaultPackage(ActionAppKind.Social),
+                                )
+                            } else {
+                                AppViaList(
+                                    stringResource(R.string.post_via),
+                                    vm.installedFor(ActionAppKind.Social, cmd.filter),
+                                    vm.systemDefaultPackage(ActionAppKind.Social),
+                                ) {
+                                    vm.pickApp(ActionAppKind.Social, it)
+                                }
                             }
                         }
                         cmd is ActionCommand.Navigate -> {
@@ -450,6 +604,21 @@ fun ActionBox(
                                 color = LocalMadTheme.current.colors.primary,
                                 enabled = true,
                                 onClick = { vm.runUserShortcut(cmd.packageName, cmd.payload) },
+                            )
+                        }
+                        cmd is ActionCommand.OpenCommonApp -> {
+                            val shortcut = CommonAppShortcuts.byId(cmd.shortcutId)
+                            val label = shortcut?.label ?: cmd.shortcutId
+                            ActionCta(
+                                label = stringResource(R.string.action_box_common_open, label),
+                                sublabel = if (cmd.payload.isBlank()) {
+                                    stringResource(R.string.action_box_common_open_sub)
+                                } else {
+                                    cmd.payload
+                                },
+                                color = LocalMadTheme.current.colors.primary,
+                                enabled = true,
+                                onClick = { vm.runPrimaryAction() },
                             )
                         }
                         cmd is ActionCommand.QuickCombo -> {
@@ -620,13 +789,30 @@ private fun QuickSearchBody(vm: LauncherViewModel) {
         return
     }
     val complete = vm.autocompleteFor(q)
-    val inside = vm.matchingSearchable(q)
+    val inside = if (q.trim().startsWith("!")) emptyList() else vm.matchingSearchable(q)
     val launch = vm.matchingLaunchApps(q)
+
+    if (vm.boxedConversions.isNotEmpty()) {
+        vm.boxedConversions.forEach { row ->
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(LocalMadTheme.current.colors.primary.copy(alpha = 0.12f))
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(row.label, color = LocalMadTheme.current.colors.muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                Text(row.text, color = LocalMadTheme.current.colors.fg, fontSize = 18.sp, fontWeight = FontWeight.Medium)
+            }
+        }
+    }
 
     val answer = vm.instantAnswer?.takeIf {
         !it.fromDuckDuckGo || vm.appearanceSettings.instantAnswerCardsEnabled
     }
     if (answer != null) {
+        val currency = LiveRates.currencyRequest(answer.heading)
         val c = LocalMadTheme.current.colors
         Column(
             modifier = Modifier
@@ -634,7 +820,13 @@ private fun QuickSearchBody(vm: LauncherViewModel) {
                 .clip(RoundedCornerShape(12.dp))
                 .background(c.primary.copy(alpha = 0.12f))
                 .border(1.dp, c.primary.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
-                .clickable { vm.openInstantAnswer() }
+                .clickable {
+                    when {
+                        currency != null -> vm.pinCurrency()
+                        !answer.continueValue.isNullOrBlank() -> vm.continueWithAnswer()
+                        answer.url.isNotBlank() -> vm.openInstantAnswer()
+                    }
+                }
                 .padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
@@ -649,8 +841,35 @@ private fun QuickSearchBody(vm: LauncherViewModel) {
             if (answer.heading.isNotBlank() && !answer.heading.equals(answer.text, ignoreCase = true)) {
                 Text(answer.heading, color = c.fg, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
             }
-            Text(answer.text, color = c.fg, fontSize = 13.sp)
+            Text(
+                answer.text,
+                color = c.fg,
+                fontSize = if (answer.continueValue != null) 22.sp else 13.sp,
+                fontWeight = if (answer.continueValue != null) FontWeight.Bold else FontWeight.Normal,
+            )
             Text(answer.source, color = c.muted, fontSize = 11.sp)
+            val canPinCurrency = currency != null && (
+                vm.boxedConversions.size < 3 || vm.boxedConversions.any { it.code == currency.to }
+                )
+            if (canPinCurrency) {
+                Text(
+                    stringResource(R.string.currency_tap_equals),
+                    color = c.primary,
+                    fontSize = 12.sp,
+                    modifier = Modifier
+                        .padding(top = 4.dp)
+                        .clickable { vm.pinCurrency() },
+                )
+            } else if (currency == null && !answer.continueValue.isNullOrBlank()) {
+                Text(
+                    stringResource(R.string.calc_tap_equals),
+                    color = c.primary,
+                    fontSize = 12.sp,
+                    modifier = Modifier
+                        .padding(top = 4.dp)
+                        .clickable { vm.continueWithAnswer() },
+                )
+            }
         }
     }
 
@@ -1012,7 +1231,19 @@ private fun ComposeBanner(vm: LauncherViewModel) {
             vm.composeKind == ActionAppKind.Contacts -> stringResource(R.string.help_add_contact_label)
             vm.composeKind == ActionAppKind.Ai -> stringResource(R.string.ai_compose_banner)
             vm.composeKind == ActionAppKind.Nav -> stringResource(R.string.nav_compose_banner)
+            vm.composeKind == ActionAppKind.Messaging || vm.composeKind == ActionAppKind.Email ->
+                stringResource(R.string.at_via)
+            vm.composeKind == ActionAppKind.Social -> stringResource(R.string.post_via)
+            vm.composeKind == ActionAppKind.VoiceCall -> stringResource(R.string.help_call_label)
+            vm.composeKind == ActionAppKind.VideoCall -> stringResource(R.string.help_video_call_label)
+            vm.stickyCompose -> stringResource(R.string.help_sticky_label)
             vm.calcMode -> stringResource(R.string.calc_compose_banner)
+            vm.spaceAddon == SpaceAddon.OPEN ->
+                stringResource(
+                    R.string.action_box_common_space_banner,
+                    CommonAppShortcuts.byId(vm.spaceShortcutId.orEmpty())?.label
+                        ?: vm.spaceShortcutId.orEmpty(),
+                )
             vm.composeContact != null && vm.contactLookupActive ->
                 stringResource(R.string.contact_lookup_pick_app, vm.composeContact!!.name)
             vm.contactLookupActive -> stringResource(R.string.contact_lookup_banner)
@@ -1049,6 +1280,11 @@ private fun ComposeBanner(vm: LauncherViewModel) {
         vm.composeKind == ActionAppKind.Social -> stringResource(R.string.post_to_social_banner, app.name)
         vm.composeKind == ActionAppKind.VoiceCall -> stringResource(R.string.call_via_app, app.name)
         vm.composeKind == ActionAppKind.VideoCall -> stringResource(R.string.video_call_via_app, app.name)
+        vm.composeKind == ActionAppKind.Nav -> stringResource(R.string.go_via_app, app.name)
+        vm.composeKind == ActionAppKind.Notes -> stringResource(R.string.note_in_app, app.name)
+        vm.composeKind == ActionAppKind.Translator -> stringResource(R.string.translate_in_app, app.name)
+        vm.composeKind == ActionAppKind.Contacts -> stringResource(R.string.add_contact_in_app, app.name)
+        vm.composeKind == ActionAppKind.Ai -> stringResource(R.string.ask_ai_app, app.name)
         vm.composeContact != null -> "${vm.composeContact!!.name} · ${app.name}"
         else -> stringResource(R.string.app_recent_conversations, app.name)
     }
@@ -1077,14 +1313,7 @@ private fun TranslateStep(vm: LauncherViewModel, @Suppress("UNUSED_PARAMETER") c
     val q = vm.actionQuery
 
     LaunchedEffect(parsed.text, parsed.fromCode, parsed.toCode) {
-        if (InstantModules.isEnabled(InstantModules.TRANSLATE) &&
-            parsed.toCode != null &&
-            parsed.text.isNotBlank()
-        ) {
-            vm.requestOnDeviceTranslate(parsed.text, parsed.fromCode, parsed.toCode)
-        } else {
-            vm.requestOnDeviceTranslate("", null, null)
-        }
+        vm.scheduleTranslatePreview(parsed.text, parsed.fromCode, parsed.toCode)
     }
 
     if (fromLabel != null || toLabel != null) {
@@ -1128,35 +1357,62 @@ private fun TranslateStep(vm: LauncherViewModel, @Suppress("UNUSED_PARAMETER") c
         }
     }
 
-    when (val tr = vm.onDeviceTranslate) {
-        is OnDeviceTranslateUi.Working -> {
-            Text(tr.message, color = LocalMadTheme.current.colors.muted, fontSize = 12.sp)
-        }
-        is OnDeviceTranslateUi.Done -> {
-            val c = LocalMadTheme.current.colors
+    if (vm.boxedTranslations.isNotEmpty()) {
+        vm.boxedTranslations.forEach { row ->
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(c.primary.copy(alpha = 0.12f))
-                    .border(1.dp, c.primary.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
-                    .padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                    .background(LocalMadTheme.current.colors.primary.copy(alpha = 0.12f))
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
-                Text(
-                    stringResource(R.string.translate_on_device),
-                    color = c.muted,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 1.2.sp,
-                )
-                Text(tr.text, color = c.fg, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                Text(row.label, color = LocalMadTheme.current.colors.muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                Text(row.text, color = LocalMadTheme.current.colors.fg, fontSize = 18.sp, fontWeight = FontWeight.Medium)
             }
         }
-        is OnDeviceTranslateUi.Error -> {
-            Text(tr.message, color = LocalMadTheme.current.colors.muted, fontSize = 12.sp)
+    }
+
+    if (parsed.text.isNotBlank()) {
+        val preview = vm.translatePreview
+        val currentPinned = parsed.toCode != null && vm.boxedTranslations.any { it.code == parsed.toCode }
+        if (!currentPinned) {
+            Text(
+                when {
+                    !preview.isNullOrBlank() -> preview
+                    vm.translatePreviewBusy -> stringResource(R.string.translate_working)
+                    else -> stringResource(R.string.translate_unavailable)
+                },
+                color = LocalMadTheme.current.colors.fg,
+                fontSize = if (preview.isNullOrBlank()) 13.sp else 18.sp,
+                fontWeight = if (preview.isNullOrBlank()) FontWeight.Normal else FontWeight.Medium,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(LocalMadTheme.current.colors.primary.copy(alpha = 0.12f))
+                    .clickable(enabled = !preview.isNullOrBlank()) { vm.copyTranslatePreview() }
+                    .padding(12.dp),
+            )
         }
-        OnDeviceTranslateUi.Idle -> Unit
+        val roomForAnother = vm.boxedTranslations.size < 3 || currentPinned
+        if (roomForAnother && parsed.toCode != null) {
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(LocalMadTheme.current.colors.primary.copy(alpha = 0.22f))
+                    .clickable { vm.pinTranslation() }
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("=", color = LocalMadTheme.current.colors.fg, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    stringResource(R.string.translate_tap_equals),
+                    color = LocalMadTheme.current.colors.muted,
+                    fontSize = 12.sp,
+                )
+            }
+        }
     }
 
     if (parsed.activeSlot != null) {
@@ -1205,12 +1461,26 @@ private fun TranslateStep(vm: LauncherViewModel, @Suppress("UNUSED_PARAMETER") c
         }
     }
 
-    AppViaList(
-        stringResource(R.string.translate_via),
-        vm.installedFor(ActionAppKind.Translator, ""),
-        vm.systemDefaultPackage(ActionAppKind.Translator),
-    ) {
-        vm.pickTranslatorApp(it, vm.actionQuery)
+    if (vm.composeApp != null) {
+        ActionCta(
+            label = if (vm.actionQuery.isBlank()) {
+                stringResource(R.string.placeholder_translate_text)
+            } else {
+                stringResource(R.string.translate_in_app, vm.composeApp!!.name)
+            },
+            sublabel = vm.composeApp!!.name,
+            color = vm.composeApp!!.color,
+            enabled = parsed.text.isNotBlank(),
+            onClick = { vm.runPrimaryAction() },
+        )
+    } else {
+        AppViaList(
+            stringResource(R.string.translate_via),
+            vm.installedFor(ActionAppKind.Translator, ""),
+            vm.systemDefaultPackage(ActionAppKind.Translator),
+        ) {
+            vm.pickTranslatorApp(it, vm.actionQuery)
+        }
     }
 }
 
@@ -1328,14 +1598,25 @@ private fun CallOrVideoStep(
         }
         val title = if (video) stringResource(R.string.video_call_via) else stringResource(R.string.call_via)
         val apps = vm.installedFor(kind, if (isPhone) "" else query)
+        val filterMode = CommandDetector.isSymbolFilter(vm.actionQuery) && !isPhone
         if (apps.isEmpty()) {
             Text(
                 stringResource(R.string.no_call_apps),
                 color = LocalMadTheme.current.colors.muted,
                 fontSize = 13.sp,
             )
+        } else if (filterMode) {
+            SymbolFilterList(
+                vm = vm,
+                title = title,
+                apps = apps,
+                kind = kind,
+                defaultPackage = vm.systemDefaultPackage(kind),
+            )
         } else {
-            AppViaList(title, apps, vm.systemDefaultPackage(kind)) { vm.pickCallApp(kind, it, if (isPhone) "" else query) }
+            AppViaList(title, apps, vm.systemDefaultPackage(kind)) {
+                vm.pickCallApp(kind, it, if (isPhone) "" else query)
+            }
             Text(
                 stringResource(R.string.actionbox_ott_calls_disabled),
                 color = LocalMadTheme.current.colors.muted,
@@ -1507,8 +1788,18 @@ private fun placeholder(vm: LauncherViewModel, cmd: ActionCommand): String {
     if (vm.composeKind == ActionAppKind.Notes) return stringResource(R.string.placeholder_note_body)
     if (vm.composeKind == ActionAppKind.Ai) return stringResource(R.string.placeholder_ask_ai)
     if (vm.composeKind == ActionAppKind.Nav) return stringResource(R.string.placeholder_navigate_place)
+    if (vm.composeKind == ActionAppKind.Contacts) return stringResource(R.string.action_box_placeholder_add_contact)
     if (vm.calcMode) return stringResource(R.string.placeholder_calc)
     if (vm.composeKind == ActionAppKind.Social) return stringResource(R.string.placeholder_whats_on_mind)
+    if (vm.composeKind == ActionAppKind.Messaging || vm.composeKind == ActionAppKind.Email) {
+        return stringResource(R.string.placeholder_pick_at)
+    }
+    if (vm.composeKind == ActionAppKind.VoiceCall) {
+        return stringResource(R.string.placeholder_search_contacts_or_number)
+    }
+    if (vm.composeKind == ActionAppKind.VideoCall) {
+        return stringResource(R.string.placeholder_video_call)
+    }
     if (vm.composeContact != null && vm.composeApp == null) {
         return stringResource(R.string.placeholder_pick_action_app)
     }
@@ -1519,12 +1810,42 @@ private fun placeholder(vm: LauncherViewModel, cmd: ActionCommand): String {
     }
     if (vm.searchScope != null) return stringResource(R.string.placeholder_search_in, vm.searchScope!!.def.displayName)
     return when (cmd) {
-        is ActionCommand.ChatPick -> stringResource(R.string.placeholder_pick_at)
+        is ActionCommand.ChatPick -> stringResource(
+            if (CommandDetector.isSymbolFilter(vm.actionQuery)) {
+                R.string.placeholder_filter_apps
+            } else {
+                R.string.placeholder_pick_at
+            },
+        )
         is ActionCommand.ContactLookup -> stringResource(R.string.placeholder_search_contacts)
-        is ActionCommand.AiAsk -> stringResource(R.string.placeholder_ask_ai)
-        is ActionCommand.PostPick -> stringResource(R.string.placeholder_pick_social)
-        is ActionCommand.Call -> stringResource(R.string.placeholder_search_contacts_or_number)
-        is ActionCommand.VideoCall -> stringResource(R.string.placeholder_video_call)
+        is ActionCommand.AiAsk -> stringResource(
+            if (CommandDetector.isSymbolFilter(vm.actionQuery)) {
+                R.string.placeholder_filter_apps
+            } else {
+                R.string.placeholder_ask_ai
+            },
+        )
+        is ActionCommand.PostPick -> stringResource(
+            if (CommandDetector.isSymbolFilter(vm.actionQuery)) {
+                R.string.placeholder_filter_apps
+            } else {
+                R.string.placeholder_pick_social
+            },
+        )
+        is ActionCommand.Call -> stringResource(
+            if (CommandDetector.isSymbolFilter(vm.actionQuery) && !CommandDetector.isPhoneLike(cmd.query)) {
+                R.string.placeholder_filter_apps
+            } else {
+                R.string.placeholder_search_contacts_or_number
+            },
+        )
+        is ActionCommand.VideoCall -> stringResource(
+            if (CommandDetector.isSymbolFilter(vm.actionQuery) && !CommandDetector.isPhoneLike(cmd.query)) {
+                R.string.placeholder_filter_apps
+            } else {
+                R.string.placeholder_video_call
+            },
+        )
         is ActionCommand.Reminder -> stringResource(R.string.placeholder_reminder)
         is ActionCommand.Note -> stringResource(R.string.placeholder_note)
         is ActionCommand.NotePick -> stringResource(R.string.placeholder_note)
@@ -1533,6 +1854,10 @@ private fun placeholder(vm: LauncherViewModel, cmd: ActionCommand): String {
         is ActionCommand.Schedule -> stringResource(R.string.placeholder_activity)
         is ActionCommand.Navigate -> stringResource(R.string.placeholder_navigate)
         is ActionCommand.OpenApp -> stringResource(R.string.action_box_placeholder_open_app)
+        is ActionCommand.OpenCommonApp -> stringResource(
+            R.string.action_box_placeholder_common_app,
+            CommonAppShortcuts.byId(cmd.shortcutId)?.label ?: cmd.shortcutId,
+        )
         is ActionCommand.QuickCombo -> when {
             cmd.combo == UserShortcutCombo.SOCIAL -> stringResource(R.string.placeholder_pick_social)
             cmd.hasContact && cmd.combo == UserShortcutCombo.CHAT ->
@@ -1588,4 +1913,21 @@ private fun PlusKindRow(label: String, sublabel: String, onClick: () -> Unit) {
         Text(label, color = c.fg, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
         Text(sublabel, color = c.muted, fontSize = 12.sp)
     }
+}
+
+@Composable
+private fun SymbolFilterList(
+    vm: LauncherViewModel,
+    title: String,
+    apps: List<InstalledActionApp>,
+    kind: ActionAppKind,
+    defaultPackage: String?,
+) {
+    AppViaList(
+        title = title,
+        apps = apps,
+        defaultPackage = defaultPackage,
+        onSelect = { vm.launchActionApp(it) },
+        onLongPress = { vm.spaceActionForFilter(kind, it) },
+    )
 }

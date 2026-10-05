@@ -51,7 +51,7 @@ object OssCredits {
         ),
         OssCredit(
             name = "ML Kit",
-            role = "On-device translation and language detection",
+            role = "Optional offline translation, downloaded from the repo pack",
             author = "Google",
             projectUrl = "https://github.com/googlesamples/mlkit",
             authorUrl = "https://github.com/google",

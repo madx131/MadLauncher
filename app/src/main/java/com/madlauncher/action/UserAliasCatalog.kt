@@ -17,6 +17,7 @@ enum class AliasTarget {
     Contact,
     Nav,
     Reminder,
+    Schedule,
     Help,
     AddContact,
     UpdateApps,
@@ -37,6 +38,7 @@ enum class AliasTarget {
         Contact -> ActionCommand.ContactLookup(payload)
         Nav -> ActionCommand.Navigate(CommandDetector.stripNavToPrefix(payload))
         Reminder -> ActionCommand.Reminder(payload)
+        Schedule -> ActionCommand.Schedule(payload)
         Help -> ActionCommand.Help
         AddContact -> ActionCommand.AddContact(payload)
         UpdateApps -> ActionCommand.UpdateApps
@@ -47,24 +49,25 @@ enum class AliasTarget {
 
     val label: String
         get() = when (this) {
-            Chat -> "@  Message"
-            Email -> "@  Message"
-            Social -> ":  Social"
-            Call -> "#  Call"
-            Video -> "*  Video call"
-            Translate -> "Translate"
-            Notes -> "Notes"
-            Sticky -> "/s  Sticky"
-            Ai -> "Ask AI"
-            Contact -> "Contact"
-            Nav -> "/g  Go"
-            Reminder -> "/r  Reminder"
-            Help -> "/h  Help"
-            AddContact -> "/a  Add contact"
-            UpdateApps -> "/u  Update"
-            SystemSettings -> "/ss  System settings"
-            LauncherSettings -> "/ls  Launcher settings"
-            ActionBoxSettings -> "/abs  ActionBox Settings"
+            Chat -> "msg  Message"
+            Email -> "msg  Message"
+            Social -> "post  Social"
+            Call -> "call  Call"
+            Video -> "video  Video call"
+            Translate -> "trans  Translate"
+            Notes -> "note  Notes"
+            Sticky -> "sticky  Sticky"
+            Ai -> "ai  Ask AI"
+            Contact -> "contact  Contact"
+            Nav -> "go  Go"
+            Reminder -> "remind  Reminder"
+            Schedule -> "schedule  Event"
+            Help -> "help  Help"
+            AddContact -> "add contact"
+            UpdateApps -> "update  Update"
+            SystemSettings -> "ss  System settings"
+            LauncherSettings -> "ls  Launcher settings"
+            ActionBoxSettings -> "abs  ActionBox Settings"
         }
 
     /** Stays in MAD — no app picker. */

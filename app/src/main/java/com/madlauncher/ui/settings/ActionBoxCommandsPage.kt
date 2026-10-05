@@ -25,6 +25,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
@@ -57,6 +59,8 @@ import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -67,14 +71,18 @@ import com.madlauncher.action.AppFuzzy
 import com.madlauncher.action.ActionAppKind
 import com.madlauncher.action.AliasTarget
 import com.madlauncher.action.CommandAliases
+import com.madlauncher.action.CommonAppShortcuts
 import com.madlauncher.action.InstalledActionApp
+import com.madlauncher.action.SpaceAddon
 import com.madlauncher.action.UserShortcut
 import com.madlauncher.action.UserShortcutCombo
 import com.madlauncher.action.UserShortcutContact
 import com.madlauncher.action.UserShortcutKind
 import com.madlauncher.action.UserShortcuts
 import com.madlauncher.data.CommandAppEditorRow
+import com.madlauncher.data.LaunchableApp
 import com.madlauncher.data.LauncherViewModel
+import com.madlauncher.action.OfflinePack
 import com.madlauncher.data.WebSearchEngine
 import com.madlauncher.ui.AppIcon
 import com.madlauncher.ui.theme.LocalMadTheme
@@ -92,6 +100,10 @@ fun ActionBoxCommandsPage(vm: LauncherViewModel) {
     @Suppress("UNUSED_VARIABLE")
     val observed = vm.actionBoxCommandsRev to vm.apps
     val c = LocalMadTheme.current.colors
+    LaunchedEffect(vm.apps, vm.loadingApps) {
+        vm.noteAbsOpened()
+    }
+    Box(modifier = Modifier.fillMaxSize()) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -117,6 +129,9 @@ fun ActionBoxCommandsPage(vm: LauncherViewModel) {
         }
         CommandIndexRow(stringResource(R.string.action_box_kind_video), stringResource(R.string.action_box_command_apps_words_sub)) {
             vm.openCommandEdit(CommandEditId.VIDEO)
+        }
+        CommandIndexRow(stringResource(R.string.action_box_kind_common_apps), stringResource(R.string.action_box_command_common_apps_sub)) {
+            vm.openCommandEdit(CommandEditId.COMMON_APPS)
         }
         CommandIndexRow(stringResource(R.string.action_box_kind_search), stringResource(R.string.action_box_command_search_sub)) {
             vm.openCommandEdit(CommandEditId.SEARCH)
@@ -185,6 +200,156 @@ fun ActionBoxCommandsPage(vm: LauncherViewModel) {
             }
         }
     }
+        vm.pendingNewAppShortcut?.let { app ->
+            NewAppShortcutDialog(vm = vm, app = app)
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun NewAppShortcutDialog(vm: LauncherViewModel, app: LaunchableApp) {
+    val c = LocalMadTheme.current.colors
+    val suggestions = vm.absShortcutSuggestions(app)
+    val remaining = vm.pendingNewAppRemaining
+    Dialog(onDismissRequest = { vm.skipNewAppShortcut() }) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(c.card)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                stringResource(R.string.action_box_new_app_title),
+                color = c.fg,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 16.sp,
+            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                AppIcon(app.icon, contentDescription = app.label, size = 40.dp)
+                Column(modifier = Modifier.padding(start = 10.dp).weight(1f)) {
+                    Text(app.label, color = c.fg, fontWeight = FontWeight.Medium, fontSize = 15.sp)
+                    if (remaining > 1) {
+                        Text(
+                            stringResource(R.string.action_box_new_app_remaining, remaining),
+                            color = c.muted,
+                            fontSize = 12.sp,
+                        )
+                    }
+                }
+            }
+            Text(
+                stringResource(R.string.action_box_new_app_body, app.label),
+                color = c.muted,
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+            )
+            if (suggestions.isNotEmpty()) {
+                Text(
+                    stringResource(R.string.action_box_new_app_suggestions),
+                    color = c.muted,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    suggestions.forEach { phrase ->
+                        val on = vm.newAppShortcutDraft.equals(phrase, ignoreCase = true)
+                        Text(
+                            phrase,
+                            color = if (on) c.fg else c.muted,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (on) c.primary.copy(alpha = 0.35f) else c.bg)
+                                .clickable { vm.pickNewAppShortcutSuggestion(phrase) }
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                        )
+                    }
+                }
+            }
+            BasicTextField(
+                value = vm.newAppShortcutDraft,
+                onValueChange = { raw ->
+                    vm.newAppShortcutDraft = raw.filter { it.isLetter() }.take(3).lowercase()
+                    vm.clearNewAppShortcutError()
+                },
+                singleLine = true,
+                textStyle = TextStyle(color = c.fg, fontSize = 16.sp, fontWeight = FontWeight.SemiBold),
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.None,
+                    keyboardType = KeyboardType.Ascii,
+                    imeAction = ImeAction.Done,
+                ),
+                keyboardActions = KeyboardActions(onDone = { vm.saveNewAppShortcut() }),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(c.bg)
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                decorationBox = { inner ->
+                    if (vm.newAppShortcutDraft.isEmpty()) {
+                        Text(
+                            stringResource(R.string.action_box_new_app_hint),
+                            color = c.muted,
+                            fontSize = 14.sp,
+                        )
+                    }
+                    inner()
+                },
+            )
+            vm.newAppShortcutError?.let { err ->
+                Text(err, color = c.red, fontSize = 12.sp)
+            }
+            Text(
+                stringResource(R.string.action_box_save_command),
+                color = c.bg,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 14.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(c.primary)
+                    .clickable { vm.saveNewAppShortcut() }
+                    .padding(vertical = 12.dp),
+            )
+            Text(
+                stringResource(R.string.action_box_new_app_skip),
+                color = c.fg,
+                fontWeight = FontWeight.Medium,
+                fontSize = 14.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(c.secondary)
+                    .clickable { vm.skipNewAppShortcut() }
+                    .padding(vertical = 12.dp),
+            )
+            if (remaining > 1) {
+                Text(
+                    stringResource(R.string.action_box_new_app_skip_all),
+                    color = c.muted,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { vm.skipAllNewAppShortcuts() }
+                        .padding(vertical = 6.dp),
+                )
+            }
+        }
+    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -227,23 +392,58 @@ private fun ActionBoxSearchSettings(vm: LauncherViewModel) {
             fontWeight = FontWeight.SemiBold,
             fontSize = 14.sp,
         )
+        var optionalOpen by remember { mutableStateOf(false) }
+        var pendingEngine by remember { mutableStateOf<WebSearchEngine?>(null) }
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            WebSearchEngine.entries.forEach { value ->
-                val on = engine == value
-                Text(
-                    webSearchEngineLabel(value),
-                    color = if (on) c.fg else c.muted,
-                    fontSize = 12.sp,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(if (on) c.primary.copy(alpha = 0.35f) else c.bg)
-                        .clickable { vm.setWebSearchEngine(value) }
-                        .padding(horizontal = 10.dp, vertical = 8.dp),
-                )
-            }
+            val ddgOn = engine == WebSearchEngine.DUCKDUCKGO
+            Text(
+                webSearchEngineLabel(WebSearchEngine.DUCKDUCKGO),
+                color = if (ddgOn) c.fg else c.muted,
+                fontSize = 12.sp,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(if (ddgOn) c.primary.copy(alpha = 0.35f) else c.bg)
+                    .clickable { vm.setWebSearchEngine(WebSearchEngine.DUCKDUCKGO) }
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+            )
+            val currentEngine = webSearchEngineLabel(engine)
+            Text(
+                if (ddgEngine) {
+                    stringResource(R.string.action_box_optional)
+                } else {
+                    stringResource(R.string.action_box_optional_on, currentEngine)
+                },
+                color = if (optionalOpen || !ddgEngine) c.fg else c.muted,
+                fontSize = 12.sp,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(if (optionalOpen) c.primary.copy(alpha = 0.35f) else c.bg)
+                    .clickable { optionalOpen = true }
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+            )
+        }
+        if (pendingEngine == null && optionalOpen) {
+            OptionalModulesDialog(
+                vm = vm,
+                engine = engine,
+                onPickEngine = { value ->
+                    if (value != engine) pendingEngine = value
+                },
+                onDismiss = { optionalOpen = false },
+            )
+        }
+        pendingEngine?.let { next ->
+            SearchEngineWarningDialog(
+                engineLabel = webSearchEngineLabel(next),
+                onCancel = { pendingEngine = null },
+                onSwitch = {
+                    pendingEngine = null
+                    vm.setWebSearchEngine(next)
+                },
+            )
         }
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -300,6 +500,180 @@ private fun ActionBoxSearchSettings(vm: LauncherViewModel) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun OptionalModulesDialog(
+    vm: LauncherViewModel,
+    engine: WebSearchEngine,
+    onPickEngine: (WebSearchEngine) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val c = LocalMadTheme.current.colors
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(c.card)
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                stringResource(R.string.action_box_optional),
+                color = c.fg,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 16.sp,
+            )
+            Text(
+                stringResource(R.string.action_box_search_engine),
+                color = c.muted,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                WebSearchEngine.entries.filter { it != WebSearchEngine.DUCKDUCKGO }.forEach { value ->
+                    val on = engine == value
+                    Text(
+                        webSearchEngineLabel(value),
+                        color = if (on) c.fg else c.muted,
+                        fontSize = 12.sp,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (on) c.primary.copy(alpha = 0.35f) else c.bg)
+                            .clickable { onPickEngine(value) }
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                    )
+                }
+            }
+            Text(
+                stringResource(R.string.action_box_offline_modules),
+                color = c.muted,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            vm.offlineCatalog.forEach { module ->
+                val on = module.id in vm.offlineModules
+                val busy = vm.offlineModuleBusy == module.id
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                        Text(module.name, color = c.fg, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                        Text(
+                            when {
+                                busy -> stringResource(R.string.action_box_offline_module_busy)
+                                else -> offlineModuleSubtitle(module.id)
+                            },
+                            color = c.muted,
+                            fontSize = 12.sp,
+                        )
+                    }
+                    Switch(
+                        checked = on || busy,
+                        enabled = vm.offlineModuleBusy == null,
+                        onCheckedChange = { vm.setOfflineModule(module.id, it) },
+                    )
+                }
+            }
+            Text(
+                stringResource(R.string.action_close),
+                color = c.fg,
+                fontWeight = FontWeight.Medium,
+                fontSize = 14.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(c.secondary)
+                    .clickable(onClick = onDismiss)
+                    .padding(vertical = 12.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun offlineModuleSubtitle(id: String): String = stringResource(
+    when (id) {
+        OfflinePack.CALC -> R.string.action_box_offline_calc_sub
+        OfflinePack.CONVERSIONS -> R.string.action_box_offline_conversions_sub
+        OfflinePack.CURRENCY -> R.string.action_box_offline_currency_sub
+        OfflinePack.TRANSLATE -> R.string.action_box_offline_translate_sub
+        else -> R.string.action_box_offline_modules
+    },
+)
+
+@Composable
+private fun SearchEngineWarningDialog(
+    engineLabel: String,
+    onCancel: () -> Unit,
+    onSwitch: () -> Unit,
+) {
+    val c = LocalMadTheme.current.colors
+    Dialog(onDismissRequest = onCancel) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(c.card)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                stringResource(R.string.action_box_engine_warn_title, engineLabel),
+                color = c.fg,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 16.sp,
+            )
+            Text(
+                stringResource(R.string.action_box_engine_warn_body),
+                color = c.muted,
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+            )
+            listOf(
+                R.string.action_box_engine_warn_bangs,
+                R.string.action_box_engine_warn_instant,
+                R.string.action_box_engine_warn_currency,
+            ).forEach { id ->
+                Text("•  " + stringResource(id), color = c.fg, fontSize = 14.sp)
+            }
+            Text(
+                stringResource(R.string.action_box_engine_warn_switch),
+                color = c.bg,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 14.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(c.primary)
+                    .clickable(onClick = onSwitch)
+                    .padding(vertical = 12.dp),
+            )
+            Text(
+                stringResource(R.string.cancel),
+                color = c.fg,
+                fontWeight = FontWeight.Medium,
+                fontSize = 14.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(c.secondary)
+                    .clickable(onClick = onCancel)
+                    .padding(vertical = 12.dp),
+            )
+        }
+    }
+}
+
 @Composable
 private fun webSearchEngineLabel(engine: WebSearchEngine): String = stringResource(
     when (engine) {
@@ -346,6 +720,7 @@ fun ActionBoxCommandEditPage(vm: LauncherViewModel) {
             }
         }
         CommandEditId.SEARCH -> SearchCommandEditPage(vm)
+        CommandEditId.COMMON_APPS -> CommonAppsCommandEditPage(vm)
         else -> CommandEditBody(vm, id)
     }
 }
@@ -489,6 +864,83 @@ private fun SearchCommandEditPage(vm: LauncherViewModel) {
         }
     }
 }
+
+@Composable
+private fun CommonAppsCommandEditPage(vm: LauncherViewModel) {
+    val c = LocalMadTheme.current.colors
+    @Suppress("UNUSED_VARIABLE")
+    val observed = vm.apps
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            stringResource(R.string.action_box_common_apps_edit_hint),
+            color = c.muted,
+            fontSize = 12.sp,
+        )
+        CommonAppShortcuts.catalog.forEach { shortcut ->
+            val app = shortcut.packages.firstNotNullOfOrNull { pkg ->
+                vm.apps.firstOrNull { it.packageName.equals(pkg, ignoreCase = true) }
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(c.secondary.copy(alpha = 0.45f))
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+            ) {
+                if (app != null) {
+                    AppIcon(app.icon, app.label, size = 28.dp)
+                }
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = if (app != null) 10.dp else 0.dp),
+                ) {
+                    Text(shortcut.label, color = c.fg, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        shortcut.phrases.joinToString(" · "),
+                        color = c.muted,
+                        fontSize = 12.sp,
+                    )
+                    Text(
+                        stringResource(
+                            R.string.action_box_common_apps_row_sub,
+                            commonAddonLabel(shortcut.addon),
+                            shortcut.phrases.first(),
+                        ),
+                        color = c.muted,
+                        fontSize = 11.sp,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun commonAddonLabel(addon: SpaceAddon): String = stringResource(
+    when (addon) {
+        SpaceAddon.CALC -> R.string.action_box_common_addon_calc
+        SpaceAddon.SEARCH -> R.string.action_box_common_addon_search
+        SpaceAddon.NAV -> R.string.action_box_common_addon_nav
+        SpaceAddon.NOTE -> R.string.action_box_common_addon_note
+        SpaceAddon.CALL -> R.string.action_box_common_addon_call
+        SpaceAddon.CHAT -> R.string.action_box_common_addon_chat
+        SpaceAddon.EMAIL -> R.string.action_box_common_addon_email
+        SpaceAddon.CONTACTS -> R.string.action_box_common_addon_contacts
+        SpaceAddon.REMINDER -> R.string.action_box_common_addon_reminder
+        SpaceAddon.SCHEDULE -> R.string.action_box_common_addon_schedule
+        SpaceAddon.TRANSLATE -> R.string.action_box_common_addon_translate
+        SpaceAddon.AI -> R.string.action_box_common_addon_ai
+        SpaceAddon.OPEN -> R.string.action_box_common_addon_open
+    },
+)
 
 @Composable
 private fun CatalogBangSection(vm: LauncherViewModel) {
@@ -1864,6 +2316,7 @@ private fun aliasTargetLabelRes(target: AliasTarget): Int = when (target) {
     AliasTarget.Contact -> R.string.action_box_kind_contact
     AliasTarget.Nav -> R.string.action_box_kind_go
     AliasTarget.Reminder -> R.string.action_box_kind_reminder
+    AliasTarget.Schedule -> R.string.action_box_kind_schedule
     AliasTarget.Help -> R.string.action_box_kind_help
     AliasTarget.AddContact -> R.string.action_box_kind_add_contact
     AliasTarget.UpdateApps -> R.string.action_box_kind_update

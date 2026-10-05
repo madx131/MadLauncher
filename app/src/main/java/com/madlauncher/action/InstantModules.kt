@@ -27,18 +27,24 @@ object InstantModules {
     private val defaultModules = listOf(
         InstantModule(CALC, "Calculator", enabled = true, offline = true, answerType = "calc", examples = listOf("2+2")),
         InstantModule(CONVERSIONS, "Unit conversion", enabled = true, offline = true, answerType = "conversions", examples = listOf("72 f to c")),
-        InstantModule(TRANSLATE, "Translator", enabled = true, offline = true, answerType = "translate", examples = listOf("/t hello")),
+        InstantModule(TRANSLATE, "Translator", enabled = true, offline = false, answerType = "translate", examples = listOf("/t hello", "!tr hello")),
     )
 
     @Volatile
     private var modules: List<InstantModule> = defaultModules
 
+    /** When set, this list decides which local modules answer. Null keeps the pack defaults. */
+    @Volatile
+    var enabledIds: Set<String>? = null
+
     fun resetToDefaults() {
         modules = defaultModules
     }
 
-    fun isEnabled(id: String): Boolean =
-        modules.firstOrNull { it.id == id }?.enabled ?: true
+    fun isEnabled(id: String): Boolean {
+        enabledIds?.let { return id in it }
+        return modules.firstOrNull { it.id == id }?.enabled ?: true
+    }
 
     fun moduleIdFor(result: CalcResult): String =
         if (result.kind == CalcKind.CONVERSION) CONVERSIONS else CALC
@@ -80,6 +86,7 @@ object InstantModules {
             source = LOCAL_SOURCE,
             url = "",
             fromDuckDuckGo = false,
+            continueValue = CalcParser.continueValue(parsed),
         )
     }
 

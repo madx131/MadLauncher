@@ -1,5 +1,6 @@
 package com.madlauncher.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -63,7 +64,7 @@ import kotlinx.coroutines.withContext
 @Composable
 fun HomeWidgetPicker(
     vm: LauncherViewModel,
-    onDismiss: () -> Unit = { vm.widgetPickerOpen = false },
+    onDismiss: () -> Unit = { vm.closeWidgetPicker() },
     modifier: Modifier = Modifier,
 ) {
     val theme = LocalMadTheme.current
@@ -81,7 +82,9 @@ fun HomeWidgetPicker(
             }
         }
     }
-    val builtIn = remember(filtered) { filtered.filter { it.isBuiltIn } }
+    val appsOnly = vm.multiWidgetPickHost != null
+    BackHandler(onBack = onDismiss)
+    val builtIn = remember(filtered, appsOnly) { if (appsOnly) emptyList() else filtered.filter { it.isBuiltIn } }
     val thirdParty = remember(filtered) { filtered.filter { !it.isBuiltIn } }
     val grouped = remember(thirdParty) {
         thirdParty.groupBy { appLetter(it.appLabel) }.toSortedMap()

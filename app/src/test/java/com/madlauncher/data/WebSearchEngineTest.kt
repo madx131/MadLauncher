@@ -11,7 +11,10 @@ class WebSearchEngineTest {
 
     @Test
     fun buildsEngineUrls() {
-        assertEquals("https://duckduckgo.com/?q=hello", WebSearchEngine.DUCKDUCKGO.searchUrl("hello"))
+        assertEquals(
+            "https://duckduckgo.com/?q=hello&t=madactionbox",
+            WebSearchEngine.DUCKDUCKGO.searchUrl("hello"),
+        )
         assertEquals("https://www.google.com/search?q=hello", WebSearchEngine.GOOGLE.searchUrl("hello"))
         assertEquals("https://www.bing.com/search?q=hello", WebSearchEngine.BING.searchUrl("hello"))
         assertEquals("https://search.yahoo.com/search?p=hello", WebSearchEngine.YAHOO.searchUrl("hello"))
@@ -22,8 +25,31 @@ class WebSearchEngineTest {
     }
 
     @Test
+    fun tagsDuckDuckGoRequests() {
+        assertEquals(
+            "https://duckduckgo.com/?q=hello&t=madactionbox",
+            DuckDuckGoApp.tag("https://duckduckgo.com/?q=hello"),
+        )
+        assertEquals(
+            "https://api.duckduckgo.com/?q=hello&format=json&t=madactionbox",
+            DuckDuckGoApp.tag("https://api.duckduckgo.com/?q=hello&format=json"),
+        )
+        assertEquals(
+            "https://duckduckgo.com/?q=hello&t=ffsb",
+            DuckDuckGoApp.tag("https://duckduckgo.com/?q=hello&t=ffsb"),
+        )
+        assertEquals(
+            "https://www.google.com/search?q=hello",
+            DuckDuckGoApp.tag("https://www.google.com/search?q=hello"),
+        )
+    }
+
+    @Test
     fun encodesQuery() {
-        assertEquals("https://duckduckgo.com/?q=hello+world", WebSearchEngine.DUCKDUCKGO.searchUrl("hello world"))
+        assertEquals(
+            "https://duckduckgo.com/?q=hello+world&t=madactionbox",
+            WebSearchEngine.DUCKDUCKGO.searchUrl("hello world"),
+        )
         assertEquals(
             "https://www.google.com/search?q=C%2B%2B",
             WebSearchEngine.GOOGLE.searchUrl("C++"),

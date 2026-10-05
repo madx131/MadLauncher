@@ -93,7 +93,7 @@ object PlatformHelp {
             PlatformFeature.ACTIONBOX_AI ->
                 "AI apps rarely accept deep-link prompts. Type ? then your question — MAD shares or copies it into the app."
             PlatformFeature.ACTIONBOX_TRANSLATE ->
-                "Install a translator app (Google Translate, etc.) to use /t. MAD clears the Action Box then opens the app with your text when possible."
+                "/t and !tr open the translate site with your text. A translator app is optional — pick one if you want the app instead."
             PlatformFeature.ACTIONBOX_NOTES ->
                 "Install a notes app to use /n. MAD clears the Action Box then opens notes with your text when possible."
             PlatformFeature.ACTIONBOX_NAV ->
@@ -117,7 +117,7 @@ object PlatformHelp {
         PlatformFeature.ACTIONBOX_AI ->
             "No AI apps installed (ChatGPT, Gemini, Claude…). ? appears after you install one."
         PlatformFeature.ACTIONBOX_TRANSLATE ->
-            "No translator app installed. /t appears after you install one (Google Translate, DeepL…)."
+            "/t and !tr open the translate site. Install a translator app if you want that instead."
         PlatformFeature.ACTIONBOX_NOTES ->
             "No notes app installed. /n appears after you install one."
         PlatformFeature.ACTIONBOX_NAV ->

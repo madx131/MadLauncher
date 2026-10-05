@@ -1,4 +1,4 @@
-package com.madlauncher.ui
+﻿package com.madlauncher.ui
 
 import android.graphics.RectF
 import androidx.compose.animation.core.animateFloatAsState
@@ -53,6 +53,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.geometry.Offset
@@ -1156,6 +1157,8 @@ private fun WidgetCell(vm: LauncherViewModel, item: HomeItem, cellW: Dp, cellH: 
         }
     }
     val glance = item.widget == "glance" || item.widget in setOf("clock", "date", "weather")
+    val multi = item.widget == "multi"
+    val madWidget = glance || multi
     val label = when {
         glance -> vm.clock.ifBlank { "MAD" }
         item.widget == "notes" -> vm.floatingNote?.let { it.title.ifBlank { it.text } } ?: "Notes"
@@ -1168,10 +1171,11 @@ private fun WidgetCell(vm: LauncherViewModel, item: HomeItem, cellW: Dp, cellH: 
     val maxSpanX = (grid - item.col).toFloat()
     val maxSpanY = (grid - item.row).toFloat()
     fun applyPreview(nextX: Float, nextY: Float) {
-        val snapped = vm.snapWidgetSpan(item.id, nextX, nextY) ?: return
-        previewSpanX = snapped.first
-        previewSpanY = snapped.second
-        vm.widgetResizePreview = item.id to snapped
+        val x = nextX.coerceIn(1f, maxSpanX.coerceAtLeast(1f))
+        val y = nextY.coerceIn(1f, maxSpanY.coerceAtLeast(1f))
+        previewSpanX = x
+        previewSpanY = y
+        vm.widgetResizePreview = item.id to (x to y)
     }
     Box(
         modifier = Modifier
@@ -1185,7 +1189,7 @@ private fun WidgetCell(vm: LauncherViewModel, item: HomeItem, cellW: Dp, cellH: 
             }
             .then(
                 // Glance handles its own taps; a parent pointerInput would steal clock/date/weather hits.
-                if (editing || item.isAppWidget || glance) Modifier else Modifier.pointerInput(item.id) {
+                if (editing || item.isAppWidget || madWidget) Modifier else Modifier.pointerInput(item.id) {
                     detectTapGestures(
                         onLongPress = {
                             view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
@@ -1240,21 +1244,26 @@ private fun WidgetCell(vm: LauncherViewModel, item: HomeItem, cellW: Dp, cellH: 
                 },
             )
             .then(
-                if (editing) Modifier.border(1.5.dp, LocalMadTheme.current.colors.primary, RoundedCornerShape(4.dp))
+                if (editing) Modifier.border(2.dp, LocalMadTheme.current.colors.primary, RoundedCornerShape(16.dp))
                 else if (item.isAppWidget) Modifier // flush to widget content — no card chrome
                 else Modifier.clip(RoundedCornerShape(16.dp)),
             )
             .then(
-                if (item.isAppWidget && !editing) Modifier
-                else if (item.isAppWidget && editing) Modifier // no card fill while editing — keep content flush
-                else Modifier.background(theme.colors.card.copy(alpha = theme.widgetAlpha)),
+                if (item.isAppWidget) Modifier
+                else if (multi) {
+                    Modifier.background(multiPanelColor(vm.multiBoardFor(item.id), theme.colors.card))
+                } else if (glance) {
+                    Modifier.background(glancePanelColor(vm.glanceSettings, theme.colors.card))
+                } else {
+                    Modifier.background(theme.colors.card.copy(alpha = theme.widgetAlpha))
+                },
             ),
         contentAlignment = Alignment.Center,
     ) {
         KeepUprightInBounds(
             modifier = Modifier
                 .fillMaxSize()
-                .then(if (item.isAppWidget || glance) Modifier else Modifier.padding(10.dp)),
+                .then(if (item.isAppWidget || madWidget) Modifier else Modifier.padding(10.dp)),
             enabled = item.isAppWidget && appWidgetRotatesInPlace(previewSpanX, previewSpanY),
         ) {
             when {
@@ -1267,6 +1276,18 @@ private fun WidgetCell(vm: LauncherViewModel, item: HomeItem, cellW: Dp, cellH: 
                         widthDp = cellW * previewSpanX,
                         heightDp = cellH * previewSpanY,
                         modifier = Modifier.fillMaxSize(),
+                    )
+                }
+                multi -> {
+                    MadMultiWidget(
+                        vm = vm,
+                        itemId = item.id,
+                        clicksEnabled = !editing && !vm.homeEditMode && vm.appHold == null,
+                        onLongPress = {
+                            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                            vm.enterWidgetEdit(item.id)
+                        },
+                        modifier = Modifier.fillMaxSize().keepUprightFill(),
                     )
                 }
                 glance -> {
@@ -1330,6 +1351,31 @@ private fun WidgetCell(vm: LauncherViewModel, item: HomeItem, cellW: Dp, cellH: 
                         )
                     },
             )
+            if (madWidget) {
+                Icon(
+                    Icons.Outlined.Settings,
+                    contentDescription = null,
+                    tint = LocalMadTheme.current.colors.fg,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .zIndex(5f)
+                        .padding(4.dp)
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(LocalMadTheme.current.colors.primary.copy(alpha = 0.85f))
+                        .clickable {
+                            val route = if (multi) {
+                                com.madlauncher.ui.settings.SettingsRoute.MULTI
+                            } else {
+                                com.madlauncher.ui.settings.SettingsRoute.GLANCE
+                            }
+                            vm.exitWidgetEdit()
+                            vm.openHomeSettings()
+                            vm.openSettingsRoute(route)
+                        }
+                        .padding(8.dp),
+                )
+            }
             Text(
                 "×",
                 color = LocalMadTheme.current.colors.fg,
@@ -1406,7 +1452,7 @@ private fun WidgetCell(vm: LauncherViewModel, item: HomeItem, cellW: Dp, cellH: 
                 },
             )
             Text(
-                "${previewSpanX.toInt()}×${previewSpanY.toInt()}",
+                "${kotlin.math.round(previewSpanX).toInt()}×${kotlin.math.round(previewSpanY).toInt()}",
                 color = LocalMadTheme.current.colors.primary,
                 fontSize = 9.sp,
                 modifier = Modifier
@@ -1448,16 +1494,15 @@ private fun WidgetResizeHandle(
                 val startY = currentY()
                 var accX = 0f
                 var accY = 0f
-                var last = down.position
                 try {
                     while (true) {
                         val event = awaitPointerEvent(PointerEventPass.Initial)
                         val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        val delta = change.positionChange()
                         change.consume()
                         if (!change.pressed) break
-                        accX += change.position.x - last.x
-                        accY += change.position.y - last.y
-                        last = change.position
+                        accX += delta.x
+                        accY += delta.y
                         val nextX = if (horizontal) spanFromDrag(startX, accX, cellWPx) else startX
                         val nextY = if (vertical) spanFromDrag(startY, accY, cellHPx) else startY
                         onPreview(nextX, nextY)
@@ -1470,15 +1515,9 @@ private fun WidgetResizeHandle(
     )
 }
 
-/** Step a span after ~0.35 of a cell so tall home cells still grow on a short drag. */
+/** Follow the finger in cell units. Whole tiles are applied when the drag ends. */
 internal fun spanFromDrag(start: Float, accPx: Float, cellPx: Float): Float {
-    val cells = accPx / cellPx.coerceAtLeast(1f)
-    val stepped = if (cells >= 0f) {
-        kotlin.math.floor((cells + 0.65f).toDouble()).toFloat()
-    } else {
-        kotlin.math.ceil((cells - 0.65f).toDouble()).toFloat()
-    }
-    return start + stepped
+    return start + accPx / cellPx.coerceAtLeast(1f)
 }
 
 @Composable
@@ -1529,123 +1568,6 @@ fun DesktopIcon(
                 modifier = Modifier.align(Alignment.TopEnd),
             )
         }
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun MadGlanceWidget(
-    vm: LauncherViewModel,
-    clicksEnabled: Boolean,
-    onLongPress: () -> Unit = {},
-    modifier: Modifier = Modifier,
-) {
-    BoxWithConstraints(modifier = modifier) {
-        // Safe coerceIn: never invert when the cell is shorter than the usual min font size.
-        val clockUpper = minOf(44f, maxHeight.value.coerceAtLeast(1f))
-        val clockLower = minOf(18f, clockUpper)
-        val clockSp = (maxHeight.value * 0.28f).coerceIn(clockLower, clockUpper).sp
-        val metaUpper = minOf(15f, maxHeight.value.coerceAtLeast(1f))
-        val metaLower = minOf(10f, metaUpper)
-        val metaSp = (maxHeight.value * 0.09f).coerceIn(metaLower, metaUpper).sp
-        val showIcons = maxHeight >= 72.dp && vm.useWidgetBadges && vm.unreadApps.isNotEmpty()
-        val iconSize = if (maxHeight >= 120.dp) 26.dp else 22.dp
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            GlanceTapZone(
-                enabled = clicksEnabled,
-                onClick = { vm.openClockWidget() },
-                onLongPress = onLongPress,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(
-                    text = vm.clock.ifBlank { "--:--" },
-                    color = LocalMadTheme.current.colors.fg,
-                    fontSize = clockSp,
-                    fontWeight = FontWeight.Bold,
-                    lineHeight = clockSp,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-            GlanceTapZone(
-                enabled = clicksEnabled,
-                onClick = { vm.openCalendarWidget() },
-                onLongPress = onLongPress,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(
-                    vm.date,
-                    color = LocalMadTheme.current.colors.primary,
-                    fontSize = metaSp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-            GlanceTapZone(
-                enabled = clicksEnabled,
-                onClick = { vm.openWeatherWidget() },
-                onLongPress = onLongPress,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(
-                    vm.weatherLabel,
-                    color = LocalMadTheme.current.colors.muted,
-                    fontSize = metaSp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-            if (showIcons) {
-                Spacer(Modifier.height(6.dp))
-                UnreadIconRow(
-                    unread = vm.unreadApps,
-                    clicksEnabled = clicksEnabled,
-                    onClick = { vm.toggleNotifications() },
-                    iconSize = iconSize,
-                )
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun GlanceTapZone(
-    enabled: Boolean,
-    onClick: () -> Unit,
-    onLongPress: () -> Unit,
-    modifier: Modifier = Modifier,
-    content: @Composable () -> Unit,
-) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
-            .then(
-                if (enabled) {
-                    Modifier.combinedClickable(
-                        onClick = onClick,
-                        onLongClick = onLongPress,
-                    )
-                } else {
-                    Modifier
-                },
-            )
-            .padding(horizontal = 6.dp, vertical = 6.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        content()
     }
 }
 

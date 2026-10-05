@@ -16,6 +16,8 @@ enum class SettingsRoute {
     NOT_WORKING,
     SHARE_APK,
     ABOUT,
+    GLANCE,
+    MULTI,
 }
 
 enum class CommandEditId {
@@ -24,6 +26,7 @@ enum class CommandEditId {
     CALL,
     VIDEO,
     SEARCH,
+    COMMON_APPS,
     NOTES,
     TRANSLATE,
     NAV,

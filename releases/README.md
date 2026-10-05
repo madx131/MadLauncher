@@ -9,4 +9,4 @@ To share with people who are not collaborators, use Settings → Extras → Shar
 (the distributor build downloads this public APK with the token and shares the file).
 
 Built with `-PMAD_PUBLIC_APK=true` so `SHOW_APK_SHARE=false`.
-Local archive: `versions\MAD-0.9.116.21-latest.apk`.
+Local archive: `versions\MAD-0.9.116.58-latest.apk`.

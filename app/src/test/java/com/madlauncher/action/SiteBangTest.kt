@@ -32,7 +32,7 @@ class SiteBangTest {
     }
 
     @Test
-    fun installedAppBeatsWebsite() {
+    fun bangOpensWebsiteEvenIfAppInstalled() {
         val youtube = SearchableApps.catalog.first { it.appName == "YouTube" }
         val resolved = ResolvedSearchApp(
             def = youtube,
@@ -43,9 +43,8 @@ class SiteBangTest {
                 icon = null,
             ),
         )
-        val inline = SearchableApps.parseInlineSearch("!yt cats", listOf(resolved))
-        assertEquals("YouTube", inline?.first?.def?.displayName)
-        assertEquals("cats", inline?.second)
-        assertNull(SearchableApps.parseWebBang("!yt cats", listOf(resolved)))
+        val web = SearchableApps.parseWebBang("!yt cats", listOf(resolved))
+        assertEquals("YouTube", web?.first?.displayName)
+        assertEquals("cats", web?.second)
     }
 }

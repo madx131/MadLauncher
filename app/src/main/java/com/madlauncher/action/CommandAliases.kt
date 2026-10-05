@@ -1,25 +1,37 @@
 package com.madlauncher.action
 
 /**
+ * `!` is always a website search in the browser (DDG extras).
+ * In-app search is Space on a common app (`yt `, `gm `), not a bang.
+ */
+object AppBangs {
+    fun owns(@Suppress("UNUSED_PARAMETER") trigger: String): Boolean = false
+}
+
+/**
  * Word shortcuts for Action Box symbols — e.g. `msg alice` → [@] alice.
  * Built-in English words plus [UserAliasCatalog] extras (any language).
  */
 object CommandAliases {
     val chat = listOf("txt", "text", "msg", "message", "mail", "email", "send")
+    val social = listOf("post", "social")
     val call = listOf("dial", "call", "phone")
     val video = listOf("vid", "video")
     val translate = listOf("trans", "translate")
+    val notes = listOf("note", "notes")
     val nav = listOf("go")
     val sticky = listOf("/s", "stk", "stick", "sticky", "sitcky")
-    val help = listOf("/h")
+    val help = listOf("/h", "help")
     val contact = listOf("contact")
     val addContact = listOf("/a", "add contact")
     val updateApps = listOf("update", "updates", "update apps", "/u")
     val reminder = listOf("/r", "remind", "reminder")
+    val schedule = listOf("/c", "schedule", "event")
+    val ai = listOf("ai", "ask ai")
     val calc = listOf("calc", "calculate", "calculator")
-    val systemSettings = listOf("/ss")
-    val launcherSettings = listOf("/ls")
-    val actionBoxSettings = listOf("/abs")
+    val systemSettings = listOf("/ss", "ss")
+    val launcherSettings = listOf("/ls", "ls")
+    val actionBoxSettings = listOf("/abs", "abs")
 
     @Volatile
     var extras: UserAliasCatalog = UserAliasCatalog.Empty
@@ -42,6 +54,7 @@ object CommandAliases {
         AliasTarget.Call -> call
         AliasTarget.Video -> video
         AliasTarget.Translate -> translate
+        AliasTarget.Notes -> notes
         AliasTarget.Nav -> nav
         AliasTarget.Sticky -> sticky
         AliasTarget.Help -> help
@@ -49,13 +62,13 @@ object CommandAliases {
         AliasTarget.AddContact -> addContact
         AliasTarget.UpdateApps -> updateApps
         AliasTarget.Reminder -> reminder
+        AliasTarget.Schedule -> schedule
+        AliasTarget.Social -> social
+        AliasTarget.Ai -> ai
         AliasTarget.SystemSettings -> systemSettings
         AliasTarget.LauncherSettings -> launcherSettings
         AliasTarget.ActionBoxSettings -> actionBoxSettings
-        AliasTarget.Email,
-        AliasTarget.Social,
-        AliasTarget.Notes,
-        AliasTarget.Ai -> emptyList()
+        AliasTarget.Email -> emptyList()
     }
 
     fun builtIn(target: AliasTarget): List<String> =
@@ -108,11 +121,12 @@ object CommandAliases {
             return null
         }
         val q = trimmed.lowercase()
-        val hit = (phraseIndex().map { it.first } + UserShortcuts.allPhrases() + calc)
+        fun best(from: List<String>): String? = from
             .sortedByDescending { it.length }
             .firstOrNull { it.lowercase().startsWith(q) && it.length > q.length && !it.startsWith("/") }
-            ?: return null
-        return "$hit "
+        best(phraseIndex().map { it.first } + UserShortcuts.allPhrases() + calc)?.let { return "$it " }
+        best(CommonAppShortcuts.allPhrases())?.let { return "$it " }
+        return null
     }
 
     fun isTranslateQuery(query: String): Boolean = translatePrefix(query) != null
@@ -135,6 +149,30 @@ object CommandAliases {
         return calc.any { it.equals(trimmed, ignoreCase = true) }
     }
 
+    /** `msg ` — messaging app picker. `@` stays in the field as a filter. */
+    fun isChatCommit(query: String): Boolean = isBodyCommit(query, AliasTarget.Chat)
+
+    /** `post ` — social composer picker. `:` stays in the field as a filter. */
+    fun isSocialCommit(query: String): Boolean = isBodyCommit(query, AliasTarget.Social)
+
+    /** `call ` — call someone. `#` stays in the field as a filter. */
+    fun isCallCommit(query: String): Boolean = isBodyCommit(query, AliasTarget.Call)
+
+    /** `video ` — video call. `*` stays in the field as a filter. */
+    fun isVideoCommit(query: String): Boolean = isBodyCommit(query, AliasTarget.Video)
+
+    /** `sticky ` / `/s ` — floating sticky note. */
+    fun isStickyCommit(query: String): Boolean = isBodyCommit(query, AliasTarget.Sticky) ||
+        slashCommit(query, "/s")
+
+    /** `remind ` / `/r ` — reminder compose. */
+    fun isReminderCommit(query: String): Boolean = isBodyCommit(query, AliasTarget.Reminder) ||
+        slashCommit(query, "/r")
+
+    /** `schedule ` / `/c ` — calendar event. */
+    fun isScheduleCommit(query: String): Boolean = isBodyCommit(query, AliasTarget.Schedule) ||
+        slashCommit(query, "/c")
+
     /** `/n ` — clear field for note body. */
     fun isNotesCommit(query: String): Boolean = isBodyCommit(query, AliasTarget.Notes) ||
         slashCommit(query, "/n")
@@ -152,17 +190,18 @@ object CommandAliases {
             (hit.second as ActionCommand.OpenApp).payload.isEmpty()
     }
 
-    /** `? ` / `ai ` / `ask ai ` — clear field for AI prompt. */
-    fun isAiCommit(query: String): Boolean {
-        if (isBodyCommit(query, AliasTarget.Ai)) return true
+    /** `ai ` / `ask ai ` — clear field for AI prompt. `?` stays in the field as a filter. */
+    fun isAiCommit(query: String): Boolean = isBodyCommit(query, AliasTarget.Ai)
+
+    /**
+     * `@ ` `# ` `: ` `* ` `? ` — Space addon on the first app in that command's
+     * ActionBox Settings list. `@wa` still filters; only the bare symbol + space commits.
+     */
+    fun isSymbolShortcutCommit(query: String): Boolean {
         if (query.isEmpty() || !query.last().isWhitespace()) return false
         val trimmed = query.trimEnd()
-        val lower = trimmed.lowercase()
-        if (lower == "?" || lower.matches(Regex("^\\?\\s*$"))) return true
-        if (lower == "ai" || lower.matches(Regex("^ai\\s*$"))) return true
-        if (lower == "ask ai" || lower.matches(Regex("^ask\\s+ai\\s*$"))) return true
-        if (lower == "ask ai assistant" || lower.matches(Regex("^ask\\s+ai\\s+assistant\\s*$"))) return true
-        return false
+        return trimmed == "@" || trimmed == "#" || trimmed == ":" || trimmed == "：" ||
+            trimmed == "*" || trimmed == "?"
     }
 
     /** `& ` — clear field for contact search. */
