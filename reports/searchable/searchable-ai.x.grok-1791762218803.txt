@@ -1,0 +1,18 @@
+MAD Launcher — Searchable app request
+MAD version: 0.9.116.79
+App: Grok
+Package: ai.x.grok
+App version: 1.2.45-release.02
+Play/appCategory: PRODUCTIVITY
+Handles geo: false
+Handles google.navigation: false
+SearchableInfo: false
+Curated search URL: false
+Assisted (clipboard) search: false
+Common shortcut: none
+Guessed Space addon: AI
+
+=== Device ===
+Xiaomi 23013PC75G
+Android 15 (API 35)
+ROM: Xiaomi HyperOS / HyperOS OS3.0
