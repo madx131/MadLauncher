@@ -1,0 +1,18 @@
+MAD Launcher — Searchable app request
+MAD version: 0.9.116.79
+App: Bing
+Package: com.microsoft.bing
+App version: 34.2.441001006
+Play/appCategory: PRODUCTIVITY
+Handles geo: false
+Handles google.navigation: false
+SearchableInfo: false
+Curated search URL: false
+Assisted (clipboard) search: false
+Common shortcut: none
+Guessed Space addon: SEARCH
+
+=== Device ===
+Xiaomi 23013PC75G
+Android 15 (API 35)
+ROM: Xiaomi HyperOS / HyperOS OS3.0
