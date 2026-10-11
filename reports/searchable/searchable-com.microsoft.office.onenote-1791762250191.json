@@ -1,0 +1,22 @@
+{
+  "madVersion": "0.9.116.79",
+  "appLabel": "OneNote",
+  "packageName": "com.microsoft.office.onenote",
+  "appVersion": "16.0.20430.20038",
+  "appCategory": "PRODUCTIVITY",
+  "handlesGeo": false,
+  "handlesGoogleNav": false,
+  "hasSearchableInfo": false,
+  "curatedSearchUrl": false,
+  "assistedSearch": false,
+  "commonShortcutId": null,
+  "guessedAddon": "NOTE",
+  "probedAtMillis": 1791762250191,
+  "device": {
+    "manufacturer": "Xiaomi",
+    "model": "23013PC75G",
+    "androidRelease": "15",
+    "androidSdk": 35,
+    "oemFamily": "XIAOMI_HYPEROS"
+  }
+}
