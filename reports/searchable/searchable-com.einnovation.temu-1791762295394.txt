@@ -1,0 +1,18 @@
+MAD Launcher — Searchable app request
+MAD version: 0.9.116.79
+App: Temu
+Package: com.einnovation.temu
+App version: 4.88.0
+Play/appCategory: UNDEFINED
+Handles geo: false
+Handles google.navigation: false
+SearchableInfo: false
+Curated search URL: false
+Assisted (clipboard) search: false
+Common shortcut: none
+Guessed Space addon: SEARCH
+
+=== Device ===
+Xiaomi 23013PC75G
+Android 15 (API 35)
+ROM: Xiaomi HyperOS / HyperOS OS3.0
