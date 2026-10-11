@@ -1,0 +1,22 @@
+{
+  "madVersion": "0.9.116.79",
+  "appLabel": "BlueMail",
+  "packageName": "me.bluemail.mail",
+  "appVersion": "2.2.408",
+  "appCategory": "PRODUCTIVITY",
+  "handlesGeo": false,
+  "handlesGoogleNav": false,
+  "hasSearchableInfo": false,
+  "curatedSearchUrl": false,
+  "assistedSearch": false,
+  "commonShortcutId": null,
+  "guessedAddon": "EMAIL",
+  "probedAtMillis": 1791762142908,
+  "device": {
+    "manufacturer": "Xiaomi",
+    "model": "23013PC75G",
+    "androidRelease": "15",
+    "androidSdk": 35,
+    "oemFamily": "XIAOMI_HYPEROS"
+  }
+}
