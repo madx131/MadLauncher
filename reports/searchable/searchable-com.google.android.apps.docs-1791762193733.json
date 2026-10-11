@@ -1,0 +1,22 @@
+{
+  "madVersion": "0.9.116.79",
+  "appLabel": "Drive",
+  "packageName": "com.google.android.apps.docs",
+  "appVersion": "2.26.397.0.all.alldpi",
+  "appCategory": "PRODUCTIVITY",
+  "handlesGeo": false,
+  "handlesGoogleNav": false,
+  "hasSearchableInfo": true,
+  "curatedSearchUrl": true,
+  "assistedSearch": true,
+  "commonShortcutId": "drive",
+  "guessedAddon": "SEARCH",
+  "probedAtMillis": 1791762193733,
+  "device": {
+    "manufacturer": "Xiaomi",
+    "model": "23013PC75G",
+    "androidRelease": "15",
+    "androidSdk": 35,
+    "oemFamily": "XIAOMI_HYPEROS"
+  }
+}
