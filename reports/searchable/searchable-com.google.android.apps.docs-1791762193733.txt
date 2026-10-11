@@ -1,0 +1,18 @@
+MAD Launcher — Searchable app request
+MAD version: 0.9.116.79
+App: Drive
+Package: com.google.android.apps.docs
+App version: 2.26.397.0.all.alldpi
+Play/appCategory: PRODUCTIVITY
+Handles geo: false
+Handles google.navigation: false
+SearchableInfo: true
+Curated search URL: true
+Assisted (clipboard) search: true
+Common shortcut: drive
+Guessed Space addon: SEARCH
+
+=== Device ===
+Xiaomi 23013PC75G
+Android 15 (API 35)
+ROM: Xiaomi HyperOS / HyperOS OS3.0
