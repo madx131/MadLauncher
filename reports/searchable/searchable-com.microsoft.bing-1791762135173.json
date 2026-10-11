@@ -1,0 +1,22 @@
+{
+  "madVersion": "0.9.116.79",
+  "appLabel": "Bing",
+  "packageName": "com.microsoft.bing",
+  "appVersion": "34.2.441001006",
+  "appCategory": "PRODUCTIVITY",
+  "handlesGeo": false,
+  "handlesGoogleNav": false,
+  "hasSearchableInfo": false,
+  "curatedSearchUrl": false,
+  "assistedSearch": false,
+  "commonShortcutId": null,
+  "guessedAddon": "SEARCH",
+  "probedAtMillis": 1791762135173,
+  "device": {
+    "manufacturer": "Xiaomi",
+    "model": "23013PC75G",
+    "androidRelease": "15",
+    "androidSdk": 35,
+    "oemFamily": "XIAOMI_HYPEROS"
+  }
+}
