@@ -1,0 +1,22 @@
+{
+  "madVersion": "0.9.116.79",
+  "appLabel": "Steam",
+  "packageName": "com.valvesoftware.android.steam.community",
+  "appVersion": "3.10.11",
+  "appCategory": "UNDEFINED",
+  "handlesGeo": false,
+  "handlesGoogleNav": false,
+  "hasSearchableInfo": false,
+  "curatedSearchUrl": false,
+  "assistedSearch": false,
+  "commonShortcutId": null,
+  "guessedAddon": "SEARCH",
+  "probedAtMillis": 1791762290591,
+  "device": {
+    "manufacturer": "Xiaomi",
+    "model": "23013PC75G",
+    "androidRelease": "15",
+    "androidSdk": 35,
+    "oemFamily": "XIAOMI_HYPEROS"
+  }
+}
