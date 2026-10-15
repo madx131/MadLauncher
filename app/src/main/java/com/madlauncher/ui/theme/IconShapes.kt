@@ -16,6 +16,8 @@ import kotlin.math.min
 /** MAD icon masks — keep radii conservative so paths never collapse to empty (blank icons). */
 object IconShapes {
     fun of(shape: IconShapeId, cornerDp: Float): Shape = when (shape) {
+        // Adaptive keeps each glyph’s own alpha; clip is a no-op square.
+        IconShapeId.ADAPTIVE -> RoundedCornerShape(0.dp)
         IconShapeId.CIRCLE -> RoundedCornerShape(percent = 50)
         IconShapeId.SQUARE -> RoundedCornerShape(0.dp)
         IconShapeId.ROUNDED_SQUARE -> RoundedCornerShape(cornerDp.dp.coerceIn(4.dp, 18.dp))

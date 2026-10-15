@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import com.madlauncher.data.IconBadgeStyle
+import com.madlauncher.data.IconShapeId
 import com.madlauncher.ui.theme.LocalMadTheme
 import com.madlauncher.ui.theme.MadTheme
 import kotlin.math.max
@@ -52,6 +53,7 @@ fun AppIcon(
 ) {
     val theme = LocalMadTheme.current
     val shapeId = theme.iconShape
+    val adaptive = shapeId == IconShapeId.ADAPTIVE
     val shape = MadTheme.iconClip(shapeId, theme.iconCornerDp)
     val density = LocalDensity.current
     val context = LocalContext.current
@@ -59,27 +61,72 @@ fun AppIcon(
         with(density) { size.roundToPx() }.coerceIn(48, 256)
     }
     val bgAlpha = theme.iconBgAlpha.coerceIn(0f, 1f)
-    // Rasterize without the OEM adaptive mask so MAD shapes are actually visible.
     val bmp = remember(drawable, px, shapeId, bgAlpha, packageName, activityName) {
-        rasterizeForMadShape(context, drawable, px, bgAlpha, packageName, activityName)
+        if (adaptive) {
+            rasterizeAdaptiveStyle(context, drawable, px, bgAlpha, packageName, activityName)
+        } else {
+            rasterizeForMadShape(context, drawable, px, bgAlpha, packageName, activityName)
+        }
     }
     if (bmp != null) {
         Image(
             bitmap = bmp.asImageBitmap(),
             contentDescription = contentDescription,
-            contentScale = ContentScale.Crop,
+            contentScale = if (adaptive) ContentScale.Fit else ContentScale.Crop,
             modifier = Modifier
                 .size(size)
-                .clip(shape),
+                .then(if (adaptive) Modifier else Modifier.clip(shape)),
         )
     } else {
         Box(
             modifier = Modifier
                 .size(size)
-                .clip(shape)
+                .then(if (adaptive) Modifier else Modifier.clip(shape))
                 .background(theme.colors.primary),
         )
     }
+}
+
+/**
+ * Freeform / adaptive style: keep each app’s own silhouette (Edge, BlueStacks).
+ * Prefer the PackageManager drawable as delivered — do not force a MAD mask or fill plate.
+ * AdaptiveIconDrawable is drawn with the system mask so OEM squircles stay, without a plate.
+ */
+private fun rasterizeAdaptiveStyle(
+    context: Context,
+    drawable: Drawable?,
+    px: Int,
+    bgAlpha: Float,
+    packageName: String?,
+    activityName: String?,
+): Bitmap? {
+    val source = drawable
+        ?: packageName?.let { loadApplicationIcon(context, it, activityName) }
+        ?: return null
+    val adaptive = unwrapAdaptive(source)
+        ?: packageName?.let { loadAdaptiveFromResources(context, it, activityName) }
+    if (adaptive != null) {
+        // System mask path — not a full opaque square, and not a MAD rounded clip.
+        return rasterizeSystemAdaptive(adaptive, px, bgAlpha)
+    }
+    val raw = source.toBitmap(px, px, Bitmap.Config.ARGB_8888)
+    // Never plate: transparent corners stay transparent so silhouettes show.
+    return raw
+}
+
+private fun rasterizeSystemAdaptive(drawable: AdaptiveIconDrawable, px: Int, bgAlpha: Float): Bitmap {
+    val bmp = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bmp)
+    val fill = bgAlpha.coerceIn(0f, 1f)
+    // Draw through AdaptiveIconDrawable so the platform mask applies (silhouette / squircle).
+    val oldBg = drawable.background?.alpha
+    if (fill < 0.999f) {
+        drawable.background?.alpha = (fill * 255f).toInt().coerceIn(0, 255)
+    }
+    drawable.setBounds(0, 0, px, px)
+    drawable.draw(canvas)
+    if (oldBg != null) drawable.background?.alpha = oldBg
+    return bmp
 }
 
 /**
@@ -99,14 +146,14 @@ private fun rasterizeForMadShape(
     val adaptive = unwrapAdaptive(drawable)
         ?: packageName?.let { loadAdaptiveFromResources(context, it, activityName) }
     val raw = when {
-        adaptive != null -> rasterizeAdaptive(adaptive, px, bgAlpha)
+        adaptive != null -> rasterizeAdaptiveLayers(adaptive, px, bgAlpha)
         drawable != null -> drawable.toBitmap(px, px, Bitmap.Config.ARGB_8888)
         else -> return null
     }
     return applyPlateIfNeeded(raw, bgAlpha)
 }
 
-private fun rasterizeAdaptive(drawable: AdaptiveIconDrawable, px: Int, bgAlpha: Float): Bitmap {
+private fun rasterizeAdaptiveLayers(drawable: AdaptiveIconDrawable, px: Int, bgAlpha: Float): Bitmap {
     val bmp = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bmp)
     val fill = bgAlpha.coerceIn(0f, 1f)
@@ -167,6 +214,20 @@ private fun unwrapAdaptive(drawable: Drawable?): AdaptiveIconDrawable? {
         }
     }
     return null
+}
+
+private fun loadApplicationIcon(
+    context: Context,
+    packageName: String,
+    activityName: String?,
+): Drawable? {
+    val pm = context.packageManager
+    if (!activityName.isNullOrBlank()) {
+        runCatching {
+            pm.getActivityIcon(ComponentName(packageName, activityName))
+        }.getOrNull()?.let { return it }
+    }
+    return runCatching { pm.getApplicationIcon(packageName) }.getOrNull()
 }
 
 private fun loadAdaptiveFromResources(

@@ -111,6 +111,7 @@ object MadTheme {
     }
 
     fun cornerDpFor(shape: IconShapeId): Float = when (shape) {
+        IconShapeId.ADAPTIVE -> 0f
         IconShapeId.ROUNDED_SQUARE -> 12f
         IconShapeId.SQUARE -> 0f
         IconShapeId.SQUIRCLE -> 22f

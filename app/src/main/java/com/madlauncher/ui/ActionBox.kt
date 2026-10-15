@@ -40,6 +40,8 @@ import androidx.compose.material.icons.outlined.Campaign
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.KeyboardTab
 import androidx.compose.material.icons.outlined.Language
+import androidx.compose.material.icons.outlined.Mic
+import androidx.compose.material.icons.outlined.MicOff
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Phone
 import androidx.compose.material.icons.outlined.Refresh
@@ -76,6 +78,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -105,6 +108,8 @@ import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.PersonAdd
 import androidx.compose.material.icons.outlined.Map
 import androidx.compose.material.icons.outlined.Translate
+import com.madlauncher.data.ActionBoxButtonsId
+import com.madlauncher.data.ActionBoxFontId
 import com.madlauncher.data.ContactEntry
 import com.madlauncher.data.LaunchableApp
 import com.madlauncher.action.InstalledActionApp
@@ -224,12 +229,26 @@ fun ActionBox(
         if (vm.calcMode) keyboard?.hide()
     }
 
-    val fieldStyle = MaterialTheme.typography.bodyLarge.copy(color = accent)
-    val placeholderStyle = MaterialTheme.typography.bodyLarge.copy(color = accent.copy(alpha = 0.55f))
+    val appearance = vm.displayAppearance
+    val fontScale = appearance.actionBoxFontScale.coerceIn(0.75f, 1.5f)
+    val pillScale = appearance.actionBoxPillScale.coerceIn(0.75f, 1.5f)
+    val pillFont = when (appearance.actionBoxFont) {
+        ActionBoxFontId.SERIF -> FontFamily.Serif
+        ActionBoxFontId.MONO -> FontFamily.Monospace
+        ActionBoxFontId.DEFAULT -> FontFamily.Default
+    }
+    val fieldStyle = MaterialTheme.typography.bodyLarge.copy(
+        color = accent,
+        fontSize = (16f * fontScale).sp,
+        fontFamily = pillFont,
+    )
+    val placeholderStyle = fieldStyle.copy(color = accent.copy(alpha = 0.55f))
     val fieldMinHeight = with(LocalDensity.current) {
         val line = fieldStyle.lineHeight.takeIf { it.isSp } ?: fieldStyle.fontSize * 1.25f
-        line.toDp() + 20.dp
+        line.toDp() + (20.dp * pillScale)
     }
+    val voice = rememberActionBoxVoice { spoken -> vm.applyVoiceCommand(spoken) }
+    val buttonPlacement = appearance.actionBoxButtons
 
     Column(
         modifier = modifier
@@ -705,11 +724,65 @@ fun ActionBox(
                 .clip(RoundedCornerShape(12.dp))
                 .border(1.5.dp, pill.copy(alpha = 0.85f), RoundedCornerShape(12.dp))
                 .background(pill.copy(alpha = 0.18f))
-                .padding(horizontal = 10.dp, vertical = 8.dp),
+                .padding(horizontal = (10f * pillScale).dp, vertical = (8f * pillScale).dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(leading, contentDescription = null, tint = accent, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.width(8.dp))
+            val micButton = @Composable {
+                IconButton(onClick = voice.toggle, modifier = Modifier.size(28.dp)) {
+                    Icon(
+                        if (voice.listening) Icons.Outlined.MicOff else Icons.Outlined.Mic,
+                        contentDescription = stringResource(
+                            if (voice.listening) R.string.action_box_voice_listening else R.string.action_box_voice,
+                        ),
+                        tint = if (voice.listening) LocalMadTheme.current.colors.red else accent,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+            }
+            val settingsButton = @Composable {
+                IconButton(
+                    onClick = { vm.openActionBoxSettings() },
+                    modifier = Modifier.size(28.dp),
+                ) {
+                    Icon(
+                        Icons.Outlined.Settings,
+                        contentDescription = stringResource(R.string.action_box_settings),
+                        tint = accent,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+            }
+            val closeButton = @Composable {
+                IconButton(onClick = { vm.closeActionBox() }, modifier = Modifier.size(28.dp)) {
+                    Icon(
+                        Icons.Outlined.Close,
+                        contentDescription = stringResource(R.string.action_close),
+                        tint = accent.copy(alpha = 0.7f),
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+            }
+            when (buttonPlacement) {
+                ActionBoxButtonsId.LEADING -> {
+                    settingsButton()
+                    closeButton()
+                    micButton()
+                }
+                ActionBoxButtonsId.SPLIT -> {
+                    micButton()
+                }
+                ActionBoxButtonsId.TRAILING -> {
+                    Icon(leading, contentDescription = null, tint = accent, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(8.dp))
+                }
+            }
+            if (buttonPlacement != ActionBoxButtonsId.TRAILING) {
+                if (buttonPlacement == ActionBoxButtonsId.LEADING) {
+                    Spacer(Modifier.width(4.dp))
+                }
+                Icon(leading, contentDescription = null, tint = accent, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp))
+            }
             BasicTextField(
                 value = vm.actionQuery,
                 onValueChange = vm::onQueryChange,
@@ -742,7 +815,11 @@ fun ActionBox(
                     Box {
                         if (vm.actionQuery.isEmpty()) {
                             Text(
-                                placeholder(vm, cmd),
+                                if (voice.listening) {
+                                    stringResource(R.string.action_box_voice_listening)
+                                } else {
+                                    placeholder(vm, cmd)
+                                },
                                 style = placeholderStyle,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -757,19 +834,17 @@ fun ActionBox(
                     Icon(Icons.Outlined.Close, contentDescription = stringResource(R.string.action_clear), tint = accent.copy(alpha = 0.7f), modifier = Modifier.size(16.dp))
                 }
             }
-            IconButton(
-                onClick = { vm.openActionBoxSettings() },
-                modifier = Modifier.size(28.dp),
-            ) {
-                Icon(
-                    Icons.Outlined.Settings,
-                    contentDescription = stringResource(R.string.action_box_settings),
-                    tint = accent,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-            IconButton(onClick = { vm.closeActionBox() }, modifier = Modifier.size(28.dp)) {
-                Icon(Icons.Outlined.Close, contentDescription = stringResource(R.string.action_close), tint = accent.copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
+            when (buttonPlacement) {
+                ActionBoxButtonsId.TRAILING -> {
+                    micButton()
+                    settingsButton()
+                    closeButton()
+                }
+                ActionBoxButtonsId.SPLIT -> {
+                    settingsButton()
+                    closeButton()
+                }
+                ActionBoxButtonsId.LEADING -> Unit
             }
         }
         if (vm.calcMode) {

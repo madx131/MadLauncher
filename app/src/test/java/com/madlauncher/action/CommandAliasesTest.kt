@@ -12,6 +12,8 @@ class CommandAliasesTest {
             assertTrue("$input should be ChatPick", cmd is ActionCommand.ChatPick)
         }
         assertEquals("alice", (CommandDetector.detect("msg alice") as ActionCommand.ChatPick).filter)
+        assertEquals("mom", (CommandDetector.detect("msg+mom") as ActionCommand.ChatPick).filter)
+        assertEquals("mom", (CommandDetector.detect("message+mom") as ActionCommand.ChatPick).filter)
     }
 
     @Test

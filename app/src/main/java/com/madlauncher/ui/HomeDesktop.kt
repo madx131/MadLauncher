@@ -1530,6 +1530,7 @@ fun DesktopIcon(
 ) {
     val theme = LocalMadTheme.current
     val shapeId = theme.iconShape
+    val adaptive = shapeId == com.madlauncher.data.IconShapeId.ADAPTIVE
     val shape = MadTheme.iconClip(shapeId, theme.iconCornerDp)
     val custom = vm.customIconPath(app.packageName)
     val file = custom?.let { File(it) }
@@ -1540,10 +1541,14 @@ fun DesktopIcon(
                 androidx.compose.foundation.Image(
                     bitmap = bmp.asImageBitmap(),
                     contentDescription = app.label,
-                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    contentScale = if (adaptive) {
+                        androidx.compose.ui.layout.ContentScale.Fit
+                    } else {
+                        androidx.compose.ui.layout.ContentScale.Crop
+                    },
                     modifier = Modifier
                         .fillMaxSize()
-                        .clip(shape),
+                        .then(if (adaptive) Modifier else Modifier.clip(shape)),
                 )
             } else {
                 AppIcon(null, app.label, size = size)

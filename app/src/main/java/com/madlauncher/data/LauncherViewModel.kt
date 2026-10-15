@@ -5975,6 +5975,14 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    /** Put a spoken phrase into the Action Box and run it (e.g. "one" → `1`, "message mom" → `msg+mom`). */
+    fun applyVoiceCommand(spoken: String) {
+        val normalized = com.madlauncher.action.VoiceCommandNormalizer.normalize(spoken)
+        if (normalized.isBlank()) return
+        onQueryChange(normalized)
+        runPrimaryAction()
+    }
+
     fun onQueryChange(value: String) {
         if (value.isNotBlank()) commandPickerOpen = false
         if (value.isBlank()) boxedConversions = emptyList()
