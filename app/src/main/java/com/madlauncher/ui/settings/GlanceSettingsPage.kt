@@ -7,10 +7,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -40,68 +43,82 @@ import com.madlauncher.ui.theme.LocalMadTheme
 fun GlanceSettingsPage(vm: LauncherViewModel) {
     val s = vm.glanceSettings
     val c = LocalMadTheme.current.colors
-    Text(stringResource(R.string.glance_preview), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-    GlancePreview(vm, Modifier.fillMaxWidth().height(210.dp))
-    Text(stringResource(R.string.glance_preview_hint), color = c.muted, fontSize = 12.sp)
-    Text(stringResource(R.string.glance_clock_style), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-    StyleRow(
-        options = listOf(
-            GlanceClockStyle.CLASSIC to R.string.glance_clock_classic,
-            GlanceClockStyle.THIN to R.string.glance_clock_thin,
-            GlanceClockStyle.STACKED to R.string.glance_clock_stacked,
-            GlanceClockStyle.SECONDS to R.string.glance_clock_seconds,
-            GlanceClockStyle.ANALOG to R.string.glance_clock_analog,
-            GlanceClockStyle.ANALOG_NUMBERS to R.string.glance_clock_analog_numbers,
-            GlanceClockStyle.ANALOG_MINIMAL to R.string.glance_clock_analog_minimal,
-        ),
-        selected = s.clockStyle,
-        onPick = { style -> vm.patchGlance { it.copy(clockStyle = style) } },
-    )
-    Text(stringResource(R.string.glance_date_style), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-    StyleRow(
-        options = listOf(
-            GlanceDateStyle.WEEKDAY to R.string.glance_date_weekday,
-            GlanceDateStyle.LONG to R.string.glance_date_long,
-            GlanceDateStyle.SHORT to R.string.glance_date_short,
-            GlanceDateStyle.NUMERIC to R.string.glance_date_numeric,
-        ),
-        selected = s.dateStyle,
-        onPick = { style -> vm.patchGlance { it.copy(dateStyle = style) } },
-    )
-    Text(stringResource(R.string.glance_elements), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-    s.order.forEach { id ->
-        val on = id in s.enabled
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(glanceElementLabel(id), color = c.fg, fontSize = 15.sp, modifier = Modifier.weight(1f))
-            Switch(checked = on, onCheckedChange = { vm.setGlanceElement(id, it) })
-        }
-        if (on) {
-            ElementTypeControls(type = s.typeOf(id)) { next ->
-                vm.patchGlance { it.copy(types = it.types + (id to next)) }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(stringResource(R.string.glance_preview), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+        GlancePreview(vm, Modifier.fillMaxWidth().height(210.dp))
+        Text(stringResource(R.string.glance_preview_hint), color = c.muted, fontSize = 12.sp)
+        Column(
+            modifier = Modifier
+                .weight(1f, fill = true)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(stringResource(R.string.glance_clock_style), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            SettingsStyleRow(
+                options = listOf(
+                    GlanceClockStyle.CLASSIC to R.string.glance_clock_classic,
+                    GlanceClockStyle.THIN to R.string.glance_clock_thin,
+                    GlanceClockStyle.STACKED to R.string.glance_clock_stacked,
+                    GlanceClockStyle.SECONDS to R.string.glance_clock_seconds,
+                    GlanceClockStyle.ANALOG to R.string.glance_clock_analog,
+                    GlanceClockStyle.ANALOG_NUMBERS to R.string.glance_clock_analog_numbers,
+                    GlanceClockStyle.ANALOG_MINIMAL to R.string.glance_clock_analog_minimal,
+                ),
+                selected = s.clockStyle,
+                onPick = { style -> vm.patchGlance { it.copy(clockStyle = style) } },
+            )
+            Text(stringResource(R.string.glance_date_style), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            SettingsStyleRow(
+                options = listOf(
+                    GlanceDateStyle.WEEKDAY to R.string.glance_date_weekday,
+                    GlanceDateStyle.LONG to R.string.glance_date_long,
+                    GlanceDateStyle.SHORT to R.string.glance_date_short,
+                    GlanceDateStyle.NUMERIC to R.string.glance_date_numeric,
+                ),
+                selected = s.dateStyle,
+                onPick = { style -> vm.patchGlance { it.copy(dateStyle = style) } },
+            )
+            Text(stringResource(R.string.glance_elements), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            s.order.forEach { id ->
+                val on = id in s.enabled
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(glanceElementLabel(id), color = c.fg, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                    Switch(checked = on, onCheckedChange = { vm.setGlanceElement(id, it) })
+                }
+                if (on) {
+                    ElementTypeControls(type = s.typeOf(id)) { next ->
+                        vm.patchGlance { it.copy(types = it.types + (id to next)) }
+                    }
+                }
             }
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.glance_background), color = c.fg, fontSize = 15.sp)
+                    Text(stringResource(R.string.glance_background_sub), color = c.muted, fontSize = 12.sp)
+                }
+                Switch(checked = s.background, onCheckedChange = { on -> vm.patchGlance { it.copy(background = on) } })
+            }
+            if (s.background) {
+                AccentColorPicker(
+                    selectedArgb = s.backgroundArgb,
+                    onPick = { argb -> vm.patchGlance { it.copy(backgroundArgb = argb) } },
+                    title = stringResource(R.string.glance_background),
+                    subtitle = stringResource(R.string.glance_background_sub),
+                )
+            }
+            Text(stringResource(R.string.glance_alpha), color = c.fg, fontSize = 14.sp)
+            Slider(
+                value = s.alpha,
+                onValueChange = { value -> vm.patchGlance { it.copy(alpha = value) } },
+                valueRange = 0.05f..1f,
+            )
         }
     }
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(stringResource(R.string.glance_background), color = c.fg, fontSize = 15.sp)
-            Text(stringResource(R.string.glance_background_sub), color = c.muted, fontSize = 12.sp)
-        }
-        Switch(checked = s.background, onCheckedChange = { on -> vm.patchGlance { it.copy(background = on) } })
-    }
-    if (s.background) {
-        AccentColorPicker(
-            selectedArgb = s.backgroundArgb,
-            onPick = { argb -> vm.patchGlance { it.copy(backgroundArgb = argb) } },
-            title = stringResource(R.string.glance_background),
-            subtitle = stringResource(R.string.glance_background_sub),
-        )
-    }
-    Text(stringResource(R.string.glance_alpha), color = c.fg, fontSize = 14.sp)
-    Slider(
-        value = s.alpha,
-        onValueChange = { value -> vm.patchGlance { it.copy(alpha = value) } },
-        valueRange = 0.05f..1f,
-    )
 }
 
 @Composable
@@ -194,7 +211,7 @@ private fun multiSlotLabel(slot: com.madlauncher.data.MultiSlot): String = when 
 private fun ElementTypeControls(type: GlanceType, onChange: (GlanceType) -> Unit) {
     val c = LocalMadTheme.current.colors
     Text(stringResource(R.string.glance_font), color = c.muted, fontSize = 12.sp)
-    StyleRow(
+    SettingsStyleRow(
         options = listOf(
             GlanceFont.DEFAULT to R.string.glance_font_default,
             GlanceFont.SERIF to R.string.glance_font_serif,
@@ -203,7 +220,7 @@ private fun ElementTypeControls(type: GlanceType, onChange: (GlanceType) -> Unit
         selected = type.font,
         onPick = { font -> onChange(type.copy(font = font)) },
     )
-    StyleRow(
+    SettingsStyleRow(
         options = listOf(
             GlanceWeight.LIGHT to R.string.glance_weight_light,
             GlanceWeight.REGULAR to R.string.glance_weight_regular,
@@ -232,30 +249,6 @@ private fun AddChip(label: String, onClick: () -> Unit) {
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 8.dp),
     )
-}
-
-@Composable
-private fun <T> StyleRow(options: List<Pair<T, Int>>, selected: T, onPick: (T) -> Unit) {
-    val c = LocalMadTheme.current.colors
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        options.chunked(2).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                row.forEach { (value, label) ->
-                    val on = value == selected
-                    Text(
-                        stringResource(label),
-                        color = if (on) c.fg else c.muted,
-                        fontSize = 13.sp,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(if (on) c.primary.copy(alpha = 0.35f) else c.secondary)
-                            .clickable { onPick(value) }
-                            .padding(horizontal = 10.dp, vertical = 8.dp),
-                    )
-                }
-            }
-        }
-    }
 }
 
 @Composable

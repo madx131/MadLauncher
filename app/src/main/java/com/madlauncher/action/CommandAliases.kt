@@ -93,7 +93,7 @@ object CommandAliases {
         allPhrases(target).any { it.equals(phrase, ignoreCase = true) }
 
     fun matchDetailed(raw: String): Pair<String, ActionCommand>? {
-        val trimmed = raw.trim().replace('／', '/')
+        val trimmed = raw.trim().replace('／', '/').replace('＋', '+')
         if (trimmed.isEmpty()) return null
         for ((alias, target) in phraseIndex()) {
             if (trimmed.length < alias.length) continue
@@ -101,8 +101,11 @@ object CommandAliases {
             if (trimmed.length == alias.length) {
                 return alias to target.toCommand("")
             }
-            if (trimmed[alias.length].isWhitespace()) {
-                return alias to target.toCommand(trimmed.substring(alias.length).trim())
+            val sep = trimmed[alias.length]
+            // Space (`msg mom`) or plus (`msg+mom` from voice) separates the payload.
+            if (sep.isWhitespace() || sep == '+') {
+                val payload = trimmed.substring(alias.length + 1).trim()
+                return alias to target.toCommand(payload)
             }
         }
         return null

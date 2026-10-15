@@ -9,11 +9,30 @@ enum class ThemeMode { SYSTEM, DARK, LIGHT }
 enum class PaletteId { NORD, NORD_LIGHT, WALLPAPER, MATERIAL, STEAMPUNK }
 
 enum class IconShapeId {
+    /** Keep each app’s own silhouette (Edge / BlueStacks style) — no MAD mask or fill plate. */
+    ADAPTIVE,
     ROUNDED_SQUARE,
     SQUARE,
     SQUIRCLE,
     CIRCLE,
     TEARDROP,
+}
+
+/** Action Box input-pill typeface (ABS editor). */
+enum class ActionBoxFontId {
+    DEFAULT,
+    SERIF,
+    MONO,
+}
+
+/** Where Settings / Mic / Close sit on the Action Box input pill. */
+enum class ActionBoxButtonsId {
+    /** Leading icon · field · mic · settings · close */
+    TRAILING,
+    /** Settings · close · mic · field · leading icon flipped to end */
+    LEADING,
+    /** Mic left of field; settings + close on the right */
+    SPLIT,
 }
 
 enum class PageEffectId { SLIDE, FADE, STACK, CUBE, DEPTH, BOOK }
@@ -107,6 +126,12 @@ data class AppearanceSettings(
     val actionBoxPillArgb: Long = 0xFF81A1C1,
     /** Text / icons inside the ActionBox pill. */
     val actionBoxTextArgb: Long = 0xFF81A1C1,
+    /** Input-pill text scale (0.75–1.5). */
+    val actionBoxFontScale: Float = 1f,
+    /** Input-pill overall size (padding / min height). */
+    val actionBoxPillScale: Float = 1f,
+    val actionBoxFont: ActionBoxFontId = ActionBoxFontId.DEFAULT,
+    val actionBoxButtons: ActionBoxButtonsId = ActionBoxButtonsId.TRAILING,
     val windowAlpha: Float = 0.97f,
     val drawerAlpha: Float = 0.96f,
     val dockAlpha: Float = 0.88f,
@@ -233,6 +258,10 @@ data class AppearanceSettings(
                     o.has("actionBoxTextArgb") -> o.optLong("actionBoxTextArgb")
                     else -> o.optLong("accentArgb", 0xFF81A1C1)
                 },
+                actionBoxFontScale = o.optDouble("actionBoxFontScale", 1.0).toFloat().coerceIn(0.75f, 1.5f),
+                actionBoxPillScale = o.optDouble("actionBoxPillScale", 1.0).toFloat().coerceIn(0.75f, 1.5f),
+                actionBoxFont = enumOr(o.optString("actionBoxFont"), ActionBoxFontId.DEFAULT),
+                actionBoxButtons = enumOr(o.optString("actionBoxButtons"), ActionBoxButtonsId.TRAILING),
                 windowAlpha = o.optDouble("windowAlpha", 0.97).toFloat(),
                 drawerAlpha = o.optDouble("drawerAlpha", 0.96).toFloat(),
                 dockAlpha = o.optDouble("dockAlpha", 0.88).toFloat(),
@@ -304,6 +333,10 @@ data class AppearanceSettings(
             .put("accentArgb", accentArgb)
             .put("actionBoxPillArgb", actionBoxPillArgb)
             .put("actionBoxTextArgb", actionBoxTextArgb)
+            .put("actionBoxFontScale", actionBoxFontScale.toDouble())
+            .put("actionBoxPillScale", actionBoxPillScale.toDouble())
+            .put("actionBoxFont", actionBoxFont.name)
+            .put("actionBoxButtons", actionBoxButtons.name)
             .put("windowAlpha", windowAlpha.toDouble())
             .put("drawerAlpha", drawerAlpha.toDouble())
             .put("dockAlpha", dockAlpha.toDouble())

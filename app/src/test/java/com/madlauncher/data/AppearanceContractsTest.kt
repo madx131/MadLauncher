@@ -9,6 +9,7 @@ class AppearanceContractsTest {
     fun cornerDpMatchesShapeContract() {
         assertEquals(999f, MadTheme.cornerDpFor(IconShapeId.CIRCLE), 0.01f)
         assertEquals(0f, MadTheme.cornerDpFor(IconShapeId.SQUARE), 0.01f)
+        assertEquals(0f, MadTheme.cornerDpFor(IconShapeId.ADAPTIVE), 0.01f)
         assertEquals(12f, MadTheme.cornerDpFor(IconShapeId.ROUNDED_SQUARE), 0.01f)
         assertEquals(22f, MadTheme.cornerDpFor(IconShapeId.SQUIRCLE), 0.01f)
     }
@@ -16,6 +17,32 @@ class AppearanceContractsTest {
     @Test
     fun defaultAppearanceUsesRoundedSquare() {
         assertEquals(IconShapeId.ROUNDED_SQUARE, AppearanceSettings().iconShape)
+    }
+
+    @Test
+    fun adaptiveIconShapeIsAvailable() {
+        assertEquals(true, IconShapeId.entries.contains(IconShapeId.ADAPTIVE))
+        assertEquals(0f, MadTheme.cornerDpFor(IconShapeId.ADAPTIVE), 0.01f)
+        assertEquals(IconShapeId.ADAPTIVE, AppearanceSettings(iconShape = IconShapeId.ADAPTIVE).iconShape)
+    }
+
+    @Test
+    fun actionBoxPillEditorDefaults() {
+        val d = AppearanceSettings()
+        assertEquals(1f, d.actionBoxFontScale, 0.01f)
+        assertEquals(1f, d.actionBoxPillScale, 0.01f)
+        assertEquals(ActionBoxFontId.DEFAULT, d.actionBoxFont)
+        assertEquals(ActionBoxButtonsId.TRAILING, d.actionBoxButtons)
+        val custom = AppearanceSettings(
+            actionBoxFontScale = 1.2f,
+            actionBoxPillScale = 0.9f,
+            actionBoxFont = ActionBoxFontId.MONO,
+            actionBoxButtons = ActionBoxButtonsId.SPLIT,
+        )
+        assertEquals(1.2f, custom.actionBoxFontScale, 0.01f)
+        assertEquals(0.9f, custom.actionBoxPillScale, 0.01f)
+        assertEquals(ActionBoxFontId.MONO, custom.actionBoxFont)
+        assertEquals(ActionBoxButtonsId.SPLIT, custom.actionBoxButtons)
     }
 
     @Test
