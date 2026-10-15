@@ -12,6 +12,14 @@ class SettingsBackStackTest {
             SettingsBackStack.parent(SettingsRoute.NAV_SHORTCUTS, fromActionBox = false, independentActionBox = false),
         )
         assertEquals(
+            SettingsRoute.EXPERIMENTAL,
+            SettingsBackStack.parent(SettingsRoute.SOCIAL_BROWSER, fromActionBox = false, independentActionBox = false),
+        )
+        assertEquals(
+            SettingsRoute.SOCIAL_BROWSER,
+            SettingsBackStack.parent(SettingsRoute.SOCIAL_BROWSER_ABSENT, fromActionBox = false, independentActionBox = false),
+        )
+        assertEquals(
             SettingsRoute.EXTRAS,
             SettingsBackStack.parent(SettingsRoute.EXPERIMENTAL, fromActionBox = false, independentActionBox = false),
         )

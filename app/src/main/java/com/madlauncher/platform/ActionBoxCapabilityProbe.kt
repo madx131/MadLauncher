@@ -8,6 +8,7 @@ import com.madlauncher.action.CallAppMode
 import com.madlauncher.action.CallAppRegistry
 import com.madlauncher.action.ContactReach
 import com.madlauncher.action.InstalledActionApp
+import com.madlauncher.action.SocialBrowserApps
 import com.madlauncher.action.SocialPostBridge
 import com.madlauncher.data.PermissionChecker
 import com.madlauncher.notif.NotificationHub
@@ -49,11 +50,6 @@ object ActionBoxCapabilityProbe {
 
         caps[PlatformFeature.ACTIONBOX_OTT_CALL] = FeatureStatus.UNAVAILABLE
         val metaInstalled = social.any { SocialPostBridge.metaBlocksOutsideInput(it.packageName) }
-        caps[PlatformFeature.ACTIONBOX_META_SOCIAL] = when {
-            !metaInstalled -> FeatureStatus.NOT_INSTALLED
-            !a11y -> FeatureStatus.DEGRADED
-            else -> FeatureStatus.WORKING
-        }
 
         caps[PlatformFeature.ACTIONBOX_RECIPIENT_HISTORY] = when {
             !nls -> FeatureStatus.UNAVAILABLE
@@ -108,6 +104,33 @@ object ActionBoxCapabilityProbe {
             else -> FeatureStatus.WORKING
         }
 
+        val socialCommand = { command: SocialBrowserApps.BrowserCommand ->
+            runCatching {
+                val settings = com.madlauncher.data.LocalStore(context).appearanceSettings
+                SocialBrowserApps.socialApps.any { app ->
+                    SocialBrowserApps.allowsApp(
+                        app,
+                        SocialBrowserApps.mode(
+                            app.id,
+                            settings.experimentalSocialBrowserMode,
+                            settings.experimentalSocialBrowserApps,
+                            settings.experimentalSocialBrowserOff,
+                        ),
+                        command,
+                    )
+                }
+            }.getOrDefault(false)
+        }
+        fun webStatus(on: Boolean) = if (on) FeatureStatus.DEGRADED else FeatureStatus.UNAVAILABLE
+        val dmWeb = webStatus(socialCommand(SocialBrowserApps.BrowserCommand.MSG))
+        val postWeb = webStatus(socialCommand(SocialBrowserApps.BrowserCommand.POST))
+        caps[PlatformFeature.ACTIONBOX_SOCIAL_DM] = dmWeb
+        caps[PlatformFeature.ACTIONBOX_TRUTH_POST] = postWeb
+        caps[PlatformFeature.ACTIONBOX_META_SOCIAL] = when {
+            !metaInstalled -> FeatureStatus.NOT_INSTALLED
+            else -> postWeb
+        }
+
         val catalog = buildString {
             appendLine("Messaging: ${names(messaging)}")
             appendLine("Email: ${names(email)}")
@@ -129,6 +152,7 @@ object ActionBoxCapabilityProbe {
         if (list.isEmpty()) "(none)" else list.joinToString { it.name }
 
     private fun pkgNeedsSocialA11y(packageName: String): Boolean {
+        if (SocialPostBridge.parkedInApp(packageName)) return false
         val p = packageName.lowercase()
         return p.contains("tiktok") || p.contains("zhiliaoapp") || p.contains("discord") ||
             p.contains("facebook") || p.contains("instagram")

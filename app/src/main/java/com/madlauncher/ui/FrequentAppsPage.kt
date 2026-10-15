@@ -173,7 +173,7 @@ private fun FrequentAppCell(vm: LauncherViewModel, app: LaunchableApp, iconSize:
             Text(
                 app.label,
                 color = LocalMadTheme.current.colors.fg,
-                fontSize = 11.sp,
+                fontSize = iconLabelSize(vm.displayAppearance.iconLabelSizeSp),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center,

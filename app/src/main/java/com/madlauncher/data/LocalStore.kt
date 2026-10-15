@@ -725,6 +725,10 @@ class LocalStore(context: Context) {
         get() = stringSet("skipped_abs_new_apps")
         set(value) { putStringSet("skipped_abs_new_apps", value) }
 
+    var submittedSearchablePackages: Set<String>
+        get() = stringSet("submitted_searchable_packages")
+        set(value) { putStringSet("submitted_searchable_packages", value) }
+
     private fun stringSet(key: String): Set<String> {
         val raw = prefs.getString(key, null) ?: return emptySet()
         val arr = runCatching { JSONArray(raw) }.getOrNull() ?: return emptySet()
@@ -749,6 +753,11 @@ class LocalStore(context: Context) {
     var languageEnglishOnlyMigrated: Boolean
         get() = prefs.getBoolean("language_english_only_migrated", false)
         set(value) { prefs.edit().putBoolean("language_english_only_migrated", value).apply() }
+
+    /** User picked a language in Settings. Blank overlay then stays English. */
+    var languageUserPicked: Boolean
+        get() = prefs.getBoolean("language_user_picked", false)
+        set(value) { prefs.edit().putBoolean("language_user_picked", value).apply() }
 
     var recipientHistory: List<StoredRecipient>
         get() {

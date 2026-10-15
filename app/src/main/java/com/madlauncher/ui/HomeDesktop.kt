@@ -90,6 +90,7 @@ import com.madlauncher.data.LaunchableApp
 import com.madlauncher.data.LauncherViewModel
 import com.madlauncher.data.PageEffectId
 import com.madlauncher.data.UnreadApp
+import com.madlauncher.ui.theme.IconShapes
 import com.madlauncher.ui.theme.LocalMadTheme
 import com.madlauncher.ui.theme.MadTheme
 import java.io.File
@@ -768,6 +769,8 @@ fun emptyPageIconSize(sliderDp: Float, cellW: Dp, cellH: Dp): Dp {
  * Uses the slider as-is; only shrinks if the cell is narrower than the icon
  * (height must not shrink landscape icons — grow the row instead).
  */
+fun iconLabelSize(sp: Float): androidx.compose.ui.unit.TextUnit = sp.coerceIn(9f, 16f).sp
+
 fun iconSizeForCell(sliderDp: Float, cellW: Dp, @Suppress("UNUSED_PARAMETER") cellH: Dp): Dp {
     val wanted = homeIconSize(sliderDp)
     val maxW = (cellW - 4.dp).coerceAtLeast(1.dp)
@@ -816,7 +819,7 @@ private fun HomeAppCell(vm: LauncherViewModel, app: LaunchableApp, item: HomeIte
             Text(
                 app.label,
                 color = LocalMadTheme.current.colors.fg,
-                fontSize = 11.sp,
+                fontSize = iconLabelSize(vm.displayAppearance.iconLabelSizeSp),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center,
@@ -873,7 +876,7 @@ private fun HomeShortcutCell(vm: LauncherViewModel, item: HomeItem, iconSize: Dp
             Text(
                 item.title.ifBlank { "Shortcut" },
                 color = LocalMadTheme.current.colors.fg,
-                fontSize = 11.sp,
+                fontSize = iconLabelSize(vm.displayAppearance.iconLabelSizeSp),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center,
@@ -909,7 +912,7 @@ private fun HomeFolderCell(vm: LauncherViewModel, item: HomeItem, iconSize: Dp, 
             Text(
                 item.title.ifBlank { "Folder" },
                 color = LocalMadTheme.current.colors.fg,
-                fontSize = 11.sp,
+                fontSize = iconLabelSize(vm.displayAppearance.iconLabelSizeSp),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center,
@@ -1087,7 +1090,7 @@ fun OpenFolderOverlay(vm: LauncherViewModel, modifier: Modifier = Modifier) {
                             Text(
                                 app.label,
                                 color = theme.colors.fg,
-                                fontSize = 11.sp,
+                                fontSize = iconLabelSize(vm.displayAppearance.iconLabelSizeSp),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                                 textAlign = TextAlign.Center,
@@ -1530,25 +1533,24 @@ fun DesktopIcon(
 ) {
     val theme = LocalMadTheme.current
     val shapeId = theme.iconShape
-    val adaptive = shapeId == com.madlauncher.data.IconShapeId.ADAPTIVE
     val shape = MadTheme.iconClip(shapeId, theme.iconCornerDp)
+    val density = LocalDensity.current
     val custom = vm.customIconPath(app.packageName)
     val file = custom?.let { File(it) }
     Box(modifier = Modifier.size(size).then(if (rotateUpright) Modifier.keepUpright() else Modifier)) {
         if (file != null && file.exists()) {
-            val bmp = remember(custom, shapeId) { android.graphics.BitmapFactory.decodeFile(custom) }
+            val bgAlpha = theme.iconBgAlpha
+            val fillOnly = IconShapes.shapesFillOnly(shapeId)
+            val bmp = remember(custom, shapeId, theme.iconCornerDp, bgAlpha) {
+                val raw = android.graphics.BitmapFactory.decodeFile(custom) ?: return@remember null
+                if (fillOnly) maskIconFill(raw, shape, density, bgAlpha, IconShapes.logoSlot(shapeId)) else raw
+            }
             if (bmp != null) {
                 androidx.compose.foundation.Image(
                     bitmap = bmp.asImageBitmap(),
                     contentDescription = app.label,
-                    contentScale = if (adaptive) {
-                        androidx.compose.ui.layout.ContentScale.Fit
-                    } else {
-                        androidx.compose.ui.layout.ContentScale.Crop
-                    },
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .then(if (adaptive) Modifier else Modifier.clip(shape)),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize().clip(shape),
                 )
             } else {
                 AppIcon(null, app.label, size = size)

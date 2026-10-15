@@ -132,6 +132,8 @@ class MadAccessibilityService : AccessibilityService() {
 
     private val ottChatSendRunnable = Runnable { tryChatSendTap() }
 
+    private val messengerSearchRunnable = Runnable { tryMessengerSearch() }
+
 
 
     private val watchdog = object : Runnable {
@@ -239,6 +241,8 @@ class MadAccessibilityService : AccessibilityService() {
 
             maybeScheduleChatSendTap(pkg)
 
+            maybeScheduleMessengerSearch(pkg)
+
         } else if (OttCallBridge.pending != null) {
 
             maybeScheduleOttCallTap(pkg)
@@ -254,6 +258,10 @@ class MadAccessibilityService : AccessibilityService() {
         } else if (OttChatSendBridge.pending != null) {
 
             maybeScheduleChatSendTap(pkg)
+
+        } else if (MessengerSearchBridge.pending != null) {
+
+            maybeScheduleMessengerSearch(pkg)
 
         }
 
@@ -295,6 +303,14 @@ class MadAccessibilityService : AccessibilityService() {
         mainHandler.removeCallbacks(ottChatSendRunnable)
 
         mainHandler.postDelayed(ottChatSendRunnable, delayMs)
+
+    }
+
+    fun scheduleMessengerSearch(delayMs: Long) {
+
+        mainHandler.removeCallbacks(messengerSearchRunnable)
+
+        mainHandler.postDelayed(messengerSearchRunnable, delayMs)
 
     }
 
@@ -349,6 +365,18 @@ class MadAccessibilityService : AccessibilityService() {
         if (matchesOttPackage(activePackage, req.packageName)) {
 
             scheduleChatSendAttempt(250L)
+
+        }
+
+    }
+
+    private fun maybeScheduleMessengerSearch(activePackage: String) {
+
+        val req = MessengerSearchBridge.pending ?: return
+
+        if (matchesOttPackage(activePackage, req.packageName)) {
+
+            scheduleMessengerSearch(250L)
 
         }
 
@@ -477,6 +505,40 @@ class MadAccessibilityService : AccessibilityService() {
             OttChatSendTapEngine.Step.Progress -> scheduleChatSendAttempt(450L)
 
             OttChatSendTapEngine.Step.NotFound -> scheduleChatSendAttempt(400L)
+
+        }
+
+    }
+
+    private fun tryMessengerSearch() {
+
+        val req = MessengerSearchBridge.pending ?: return
+
+        if (System.currentTimeMillis() > req.deadlineMs) {
+
+            MessengerSearchBridge.clear()
+
+            return
+
+        }
+
+        val root = findTargetRoot(req.packageName)
+
+        if (root == null) {
+
+            scheduleMessengerSearch(450L)
+
+            return
+
+        }
+
+        when (MessengerSearchTapEngine.attempt(this, root, req)) {
+
+            MessengerSearchTapEngine.Step.Completed -> MessengerSearchBridge.markDone()
+
+            MessengerSearchTapEngine.Step.Progress -> scheduleMessengerSearch(500L)
+
+            MessengerSearchTapEngine.Step.NotFound -> scheduleMessengerSearch(400L)
 
         }
 

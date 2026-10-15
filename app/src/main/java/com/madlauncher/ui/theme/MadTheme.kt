@@ -117,6 +117,13 @@ object MadTheme {
         IconShapeId.SQUIRCLE -> 22f
         IconShapeId.CIRCLE -> 999f
         IconShapeId.TEARDROP -> 50f
+        IconShapeId.STAR,
+        IconShapeId.TRIANGLE,
+        IconShapeId.HEXAGON,
+        IconShapeId.COMET,
+        IconShapeId.CRESCENT,
+        IconShapeId.SUN -> 0f
+        IconShapeId.ADAPTIVE -> 22f
     }
 
     fun iconClip(shape: IconShapeId, cornerDp: Float): Shape = IconShapes.of(shape, cornerDp)

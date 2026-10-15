@@ -1,6 +1,7 @@
 package com.madlauncher.data
 
 import androidx.compose.ui.graphics.Color
+import com.madlauncher.action.SocialBrowserApps
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -16,6 +17,14 @@ enum class IconShapeId {
     SQUIRCLE,
     CIRCLE,
     TEARDROP,
+    STAR,
+    TRIANGLE,
+    HEXAGON,
+    COMET,
+    CRESCENT,
+    SUN,
+    /** System adaptive icon: background fill, glyph in the safe zone, clipped once. */
+    ADAPTIVE,
 }
 
 /** Action Box input-pill typeface (ABS editor). */
@@ -164,6 +173,8 @@ data class AppearanceSettings(
     val dockHeightDp: Float = 68f,
     val dockIconSizeDp: Float = 50f,
     val homeIconSizeDp: Float = 56f,
+    /** Caption under home, dock, drawer, and folder icons. */
+    val iconLabelSizeSp: Float = 11f,
     val dockAutoHide: DockAutoHide = DockAutoHide.REGULAR,
     /** Swipe up on the dock (not home) slides the dock up and shows an extra app row underneath. */
     val dockSecondRow: Boolean = false,
@@ -182,10 +193,23 @@ data class AppearanceSettings(
     val experimentalMadRecents: Boolean = false,
     /** Unread app icons inside the MAD Glance (clock) widget. Off = clock/date/weather only. */
     val experimentalWidgetBadges: Boolean = false,
+    /**
+     * Catalog ids explicitly turned on. Apps whose default is already on are not listed here.
+     * Apps that are on share one browser tab.
+     */
+    val experimentalSocialBrowserApps: Set<String> = emptySet(),
+    /** Catalog ids explicitly turned off, including messaging apps that default on. */
+    val experimentalSocialBrowserOff: Set<String> = emptySet(),
+    /** Per-app Off / On / : post / @ msg. Missing ids use [SocialBrowserApps.defaultMode]. */
+    val experimentalSocialBrowserMode: Map<String, SocialBrowserApps.BrowserMode> = emptyMap(),
+    /** Apps added from Experimental → Open in browser. Default on. */
+    val customBrowserApps: List<SocialBrowserApps.Custom> = emptyList(),
     /** Action Box "Search web" engine. Missing JSON → DuckDuckGo. */
     val webSearchEngine: WebSearchEngine = WebSearchEngine.DUCKDUCKGO,
     /** DuckDuckGo Instant Answer cards. Off = on-device calc/conversions only. */
     val instantAnswersEnabled: Boolean = true,
+    /** First-run Action Box How it works cards. */
+    val actionBoxHowToSeen: Boolean = false,
 ) {
     val accentColor: Color get() = Color(accentArgb)
     val actionBoxPillColor: Color get() = Color(actionBoxPillArgb)
@@ -292,6 +316,7 @@ data class AppearanceSettings(
                 dockHeightDp = o.optDouble("dockHeightDp", 68.0).toFloat(),
                 dockIconSizeDp = o.optDouble("dockIconSizeDp", 50.0).toFloat(),
                 homeIconSizeDp = o.optDouble("homeIconSizeDp", 56.0).toFloat(),
+                iconLabelSizeSp = o.optDouble("iconLabelSizeSp", 11.0).toFloat(),
                 dockAutoHide = enumOr(o.optString("dockAutoHide"), DockAutoHide.REGULAR).forUi(),
                 dockSecondRow = o.optBoolean("dockSecondRow", false),
                 drawerLayout = enumOr(o.optString("drawerLayout"), DrawerLayoutId.LIST),
@@ -304,10 +329,78 @@ data class AppearanceSettings(
                 experimentalNavShortcuts = o.optBoolean("experimentalNavShortcuts", false),
                 experimentalMadRecents = o.optBoolean("experimentalMadRecents", false),
                 experimentalWidgetBadges = o.optBoolean("experimentalWidgetBadges", false),
+                experimentalSocialBrowserApps = socialBrowserApps(o),
+                experimentalSocialBrowserOff = socialBrowserOff(o),
+                experimentalSocialBrowserMode = socialBrowserMode(o),
+                customBrowserApps = customBrowserApps(o),
                 webSearchEngine = engine,
                 instantAnswersEnabled = o.optBoolean("instantAnswersEnabled", true) &&
                     engine == WebSearchEngine.DUCKDUCKGO,
+                actionBoxHowToSeen = o.optBoolean("actionBoxHowToSeen", false),
             )
+        }
+
+        private fun socialBrowserApps(o: JSONObject): Set<String> {
+            if (o.has("experimentalSocialBrowserApps")) {
+                val arr = o.optJSONArray("experimentalSocialBrowserApps") ?: return emptySet()
+                return buildSet {
+                    for (i in 0 until arr.length()) {
+                        val id = arr.optString(i)
+                        if (id in SocialBrowserApps.ids) add(id)
+                    }
+                }
+            }
+            // Older builds stored one switch for every broken social app.
+            return if (o.optBoolean("experimentalSocialBrowser", false)) {
+                SocialBrowserApps.socialIds
+            } else {
+                emptySet()
+            }
+        }
+
+        private fun socialBrowserOff(o: JSONObject): Set<String> {
+            if (!o.has("experimentalSocialBrowserOff")) return emptySet()
+            val arr = o.optJSONArray("experimentalSocialBrowserOff") ?: return emptySet()
+            return buildSet {
+                for (i in 0 until arr.length()) {
+                    val id = arr.optString(i)
+                    if (id in SocialBrowserApps.ids) add(id)
+                }
+            }
+        }
+
+        private fun socialBrowserMode(o: JSONObject): Map<String, SocialBrowserApps.BrowserMode> {
+            val obj = o.optJSONObject("experimentalSocialBrowserMode") ?: return emptyMap()
+            return buildMap {
+                val keys = obj.keys()
+                while (keys.hasNext()) {
+                    val id = keys.next()
+                    if (id !in SocialBrowserApps.ids) continue
+                    val mode = SocialBrowserApps.parseMode(obj.optString(id)) ?: continue
+                    put(id, mode)
+                }
+            }
+        }
+
+        private fun customBrowserApps(o: JSONObject): List<SocialBrowserApps.Custom> {
+            val arr = o.optJSONArray("customBrowserApps") ?: return emptyList()
+            return buildList {
+                for (i in 0 until arr.length()) {
+                    val item = arr.optJSONObject(i) ?: continue
+                    val pkg = item.optString("packageName").trim()
+                    val url = item.optString("url").trim()
+                    if (pkg.isBlank() || !(url.startsWith("https://") || url.startsWith("http://"))) continue
+                    if (SocialBrowserApps.idFor(pkg) != null) continue
+                    val label = item.optString("label").ifBlank { pkg }
+                    val mode = SocialBrowserApps.parseMode(item.optString("mode"))
+                        ?: if (item.optBoolean("enabled", true)) {
+                            SocialBrowserApps.BrowserMode.ON
+                        } else {
+                            SocialBrowserApps.BrowserMode.OFF
+                        }
+                    add(SocialBrowserApps.Custom(pkg, label, url, mode))
+                }
+            }
         }
 
         private inline fun <reified T : Enum<T>> enumOr(raw: String, fallback: T): T {
@@ -361,6 +454,7 @@ data class AppearanceSettings(
             .put("dockHeightDp", dockHeightDp.toDouble())
             .put("dockIconSizeDp", dockIconSizeDp.toDouble())
             .put("homeIconSizeDp", homeIconSizeDp.toDouble())
+            .put("iconLabelSizeSp", iconLabelSizeSp.toDouble())
             .put("dockAutoHide", dockAutoHide.forUi().name)
             .put("dockSecondRow", dockSecondRow)
             .put("drawerLayout", drawerLayout.name)
@@ -373,8 +467,29 @@ data class AppearanceSettings(
             .put("experimentalNavShortcuts", experimentalNavShortcuts)
             .put("experimentalMadRecents", experimentalMadRecents)
             .put("experimentalWidgetBadges", experimentalWidgetBadges)
+            .put("experimentalSocialBrowserApps", JSONArray().apply {
+                experimentalSocialBrowserApps.forEach { put(it) }
+            })
+            .put("experimentalSocialBrowserOff", JSONArray().apply {
+                experimentalSocialBrowserOff.forEach { put(it) }
+            })
+            .put("experimentalSocialBrowserMode", JSONObject().apply {
+                experimentalSocialBrowserMode.forEach { (id, mode) -> put(id, mode.name.lowercase()) }
+            })
+            .put("customBrowserApps", JSONArray().apply {
+                customBrowserApps.forEach { app ->
+                    put(JSONObject().apply {
+                        put("packageName", app.packageName)
+                        put("label", app.label)
+                        put("url", app.url)
+                        put("mode", app.mode.name.lowercase())
+                        put("enabled", app.enabled)
+                    })
+                }
+            })
             .put("webSearchEngine", webSearchEngine.name)
             .put("instantAnswersEnabled", instantAnswersEnabled)
+            .put("actionBoxHowToSeen", actionBoxHowToSeen)
             .toString()
     }
 }

@@ -79,6 +79,13 @@ fun CommandHelpList(
             fontWeight = FontWeight.SemiBold,
             letterSpacing = 1.2.sp,
         )
+        HelpPickRow(
+            symbol = "?",
+            color = c.primary,
+            title = stringResource(R.string.action_box_howto_title),
+            desc = stringResource(R.string.action_box_howto_row_sub),
+            onPick = { onPick("howto") },
+        )
         vm.userShortcuts.forEach { shortcut ->
             val appLabel = vm.apps.firstOrNull { it.packageName == shortcut.packageName }?.label
                 ?: shortcut.packageName

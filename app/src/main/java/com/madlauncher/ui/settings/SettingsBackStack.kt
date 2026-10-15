@@ -8,7 +8,8 @@ object SettingsBackStack {
         independentActionBox: Boolean,
     ): SettingsRoute? = when (route) {
         SettingsRoute.ACTION_BOX_COMMAND_EDIT -> SettingsRoute.ACTION_BOX_COMMANDS
-        SettingsRoute.NAV_SHORTCUTS -> SettingsRoute.EXPERIMENTAL
+        SettingsRoute.SOCIAL_BROWSER_ABSENT -> SettingsRoute.SOCIAL_BROWSER
+        SettingsRoute.NAV_SHORTCUTS, SettingsRoute.SOCIAL_BROWSER -> SettingsRoute.EXPERIMENTAL
         SettingsRoute.EXPERIMENTAL, SettingsRoute.NOT_WORKING, SettingsRoute.SHARE_APK -> SettingsRoute.EXTRAS
         SettingsRoute.ACTION_BOX_COMMANDS -> when {
             independentActionBox -> SettingsRoute.HUB

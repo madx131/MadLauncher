@@ -21,6 +21,8 @@ class PlatformProfileBaselineTest {
                 FeatureStatus.WORKING,
                 caps[PlatformFeature.NOTIF_BADGES],
             )
+            assertEquals(FeatureStatus.UNAVAILABLE, caps[PlatformFeature.ACTIONBOX_SOCIAL_DM])
+            assertEquals(FeatureStatus.UNAVAILABLE, caps[PlatformFeature.ACTIONBOX_TRUTH_POST])
         }
     }
 }

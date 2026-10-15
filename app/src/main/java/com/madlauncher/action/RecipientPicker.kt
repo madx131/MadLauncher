@@ -30,7 +30,8 @@ object RecipientPicker {
         } else {
             emptyList()
         }
-        return mergeRecentAndPhone(mergedRecent, phone)
+        val merged = mergeRecentAndPhone(mergedRecent, phone)
+        return if (query.isBlank()) merged else ContactMatch.order(query, merged).take(40)
     }
 
     fun mergeRecentAndPhone(recent: List<ContactEntry>, phone: List<ContactEntry>): List<ContactEntry> {

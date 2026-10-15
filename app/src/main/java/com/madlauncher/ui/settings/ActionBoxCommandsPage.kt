@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -80,6 +81,7 @@ import com.madlauncher.action.CommandAliases
 import com.madlauncher.action.CommonAppShortcuts
 import com.madlauncher.action.InstalledActionApp
 import com.madlauncher.action.SpaceAddon
+import com.madlauncher.action.SpaceQueryKind
 import com.madlauncher.action.UserShortcut
 import com.madlauncher.action.UserShortcutCombo
 import com.madlauncher.action.UserShortcutContact
@@ -93,6 +95,7 @@ import com.madlauncher.data.LaunchableApp
 import com.madlauncher.data.LauncherViewModel
 import com.madlauncher.action.OfflinePack
 import com.madlauncher.data.WebSearchEngine
+import com.madlauncher.ui.ActionBoxHowToPage
 import com.madlauncher.ui.AppIcon
 import com.madlauncher.ui.theme.LocalMadTheme
 import kotlin.math.roundToInt
@@ -122,65 +125,161 @@ fun ActionBoxCommandsPage(vm: LauncherViewModel) {
     ) {
         ActionBoxSearchSettings(vm)
         Text(
+            stringResource(R.string.action_box_keys_legend),
+            color = c.fg,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.padding(top = 10.dp, bottom = 2.dp),
+        )
+        Text(
             stringResource(R.string.action_box_commands_intro),
             color = c.muted,
             fontSize = 12.sp,
-            modifier = Modifier.padding(bottom = 8.dp),
+            modifier = Modifier.padding(bottom = 4.dp),
         )
-        CommandIndexRow(stringResource(R.string.action_box_kind_message), stringResource(R.string.action_box_command_at_sub)) {
-            vm.openCommandEdit(CommandEditId.AT)
+        CommandIndexRow(
+            stringResource(R.string.action_box_howto_title),
+            stringResource(R.string.action_box_howto_row_sub),
+            token = "?",
+        ) {
+            vm.openCommandEdit(CommandEditId.HOW_TO)
         }
-        CommandIndexRow(stringResource(R.string.action_box_kind_social), stringResource(R.string.action_box_command_apps_words_sub)) {
-            vm.openCommandEdit(CommandEditId.SOCIAL)
+        AbsSectionLabel(stringResource(R.string.action_box_abs_section_apps))
+        CommandIndexRow(
+            stringResource(R.string.action_box_your_commands),
+            stringResource(R.string.action_box_your_commands_hint),
+            token = "+",
+        ) {
+            vm.openCommandEdit(CommandEditId.CUSTOM)
         }
-        CommandIndexRow(stringResource(R.string.action_box_kind_call), stringResource(R.string.action_box_command_apps_words_sub)) {
-            vm.openCommandEdit(CommandEditId.CALL)
-        }
-        CommandIndexRow(stringResource(R.string.action_box_kind_video), stringResource(R.string.action_box_command_apps_words_sub)) {
-            vm.openCommandEdit(CommandEditId.VIDEO)
-        }
-        CommandIndexRow(stringResource(R.string.action_box_kind_common_apps), stringResource(R.string.action_box_command_common_apps_sub)) {
+        CommandIndexRow(
+            stringResource(R.string.action_box_kind_common_apps),
+            stringResource(R.string.action_box_command_common_apps_sub),
+            token = "ig",
+        ) {
             vm.openCommandEdit(CommandEditId.COMMON_APPS)
         }
-        CommandIndexRow(stringResource(R.string.action_box_kind_search), stringResource(R.string.action_box_command_search_sub)) {
+        CommandIndexRow(
+            stringResource(R.string.action_box_kind_searchable_apps),
+            stringResource(R.string.action_box_command_searchable_apps_sub),
+            token = "yt",
+        ) {
+            vm.openCommandEdit(CommandEditId.SEARCHABLE_APPS)
+        }
+        CommandIndexRow(
+            stringResource(R.string.action_box_kind_search),
+            stringResource(R.string.action_box_command_search_sub),
+            token = "!",
+        ) {
             vm.openCommandEdit(CommandEditId.SEARCH)
         }
-        CommandIndexRow(stringResource(R.string.action_box_kind_notes), stringResource(R.string.action_box_command_apps_words_sub)) {
-            vm.openCommandEdit(CommandEditId.NOTES)
+        AbsSectionLabel(stringResource(R.string.action_box_abs_section_do))
+        CommandIndexRow(
+            stringResource(R.string.action_box_kind_message),
+            stringResource(R.string.action_box_command_at_sub),
+            token = "msg",
+        ) {
+            vm.openCommandEdit(CommandEditId.AT)
         }
-        CommandIndexRow(stringResource(R.string.action_box_kind_translate), stringResource(R.string.action_box_command_apps_words_sub)) {
-            vm.openCommandEdit(CommandEditId.TRANSLATE)
+        CommandIndexRow(
+            stringResource(R.string.action_box_kind_social),
+            stringResource(R.string.action_box_command_social_sub),
+            token = "post",
+        ) {
+            vm.openCommandEdit(CommandEditId.SOCIAL)
         }
-        CommandIndexRow(stringResource(R.string.action_box_kind_go), stringResource(R.string.action_box_command_apps_words_sub)) {
+        CommandIndexRow(
+            stringResource(R.string.action_box_kind_call),
+            stringResource(R.string.action_box_command_call_sub),
+            token = "call",
+        ) {
+            vm.openCommandEdit(CommandEditId.CALL)
+        }
+        CommandIndexRow(
+            stringResource(R.string.action_box_kind_video),
+            stringResource(R.string.action_box_command_video_sub),
+            token = "video",
+        ) {
+            vm.openCommandEdit(CommandEditId.VIDEO)
+        }
+        CommandIndexRow(
+            stringResource(R.string.action_box_kind_go),
+            stringResource(R.string.action_box_command_go_sub),
+            token = "go",
+        ) {
             vm.openCommandEdit(CommandEditId.NAV)
         }
+        CommandIndexRow(
+            stringResource(R.string.action_box_kind_notes),
+            stringResource(R.string.action_box_command_notes_sub),
+            token = "note",
+        ) {
+            vm.openCommandEdit(CommandEditId.NOTES)
+        }
+        CommandIndexRow(
+            stringResource(R.string.action_box_kind_translate),
+            stringResource(R.string.action_box_command_translate_sub),
+            token = "trans",
+        ) {
+            vm.openCommandEdit(CommandEditId.TRANSLATE)
+        }
+        CommandIndexRow(
+            stringResource(R.string.action_box_kind_ai),
+            stringResource(R.string.action_box_command_ai_sub),
+            token = "ai",
+        ) {
+            vm.openCommandEdit(CommandEditId.AI)
+        }
+        CommandIndexRow(
+            stringResource(R.string.action_box_kind_contact),
+            stringResource(R.string.action_box_command_contact_sub),
+            token = "&",
+        ) {
+            vm.openCommandEdit(CommandEditId.CONTACT)
+        }
+        CommandIndexRow(
+            stringResource(R.string.action_box_kind_add_contact),
+            stringResource(R.string.action_box_command_add_contact_sub),
+            token = "add",
+        ) {
+            vm.openCommandEdit(CommandEditId.ADD_CONTACT)
+        }
+        CommandIndexRow(
+            stringResource(R.string.action_box_kind_reminder),
+            stringResource(R.string.action_box_command_reminder_sub),
+            token = "remind",
+        ) {
+            vm.openCommandEdit(CommandEditId.REMINDER)
+        }
         if (!vm.independentActionBox) {
-            CommandIndexRow(stringResource(R.string.action_box_kind_sticky), stringResource(R.string.action_box_command_words_only_sub)) {
+            CommandIndexRow(
+                stringResource(R.string.action_box_kind_sticky),
+                stringResource(R.string.action_box_command_words_only_sub),
+                token = "sticky",
+            ) {
                 vm.openCommandEdit(CommandEditId.STICKY)
             }
         }
-        CommandIndexRow(stringResource(R.string.action_box_kind_ai), stringResource(R.string.action_box_command_apps_words_sub)) {
-            vm.openCommandEdit(CommandEditId.AI)
-        }
-        CommandIndexRow(stringResource(R.string.action_box_kind_contact), stringResource(R.string.action_box_command_contact_sub)) {
-            vm.openCommandEdit(CommandEditId.CONTACT)
-        }
-        CommandIndexRow(stringResource(R.string.action_box_kind_add_contact), stringResource(R.string.action_box_command_apps_words_sub)) {
-            vm.openCommandEdit(CommandEditId.ADD_CONTACT)
-        }
-        CommandIndexRow(stringResource(R.string.action_box_kind_help), stringResource(R.string.action_box_command_help_sub)) {
+        AbsSectionLabel(stringResource(R.string.action_box_abs_section_mad))
+        CommandIndexRow(
+            stringResource(R.string.action_box_kind_help),
+            stringResource(R.string.action_box_command_help_sub),
+            token = "help",
+        ) {
             vm.openCommandEdit(CommandEditId.HELP)
         }
-        CommandIndexRow(stringResource(R.string.action_box_kind_update), stringResource(R.string.action_box_command_update_sub)) {
+        CommandIndexRow(
+            stringResource(R.string.action_box_kind_update),
+            stringResource(R.string.action_box_command_update_sub),
+            token = "update",
+        ) {
             vm.openCommandEdit(CommandEditId.UPDATE_APPS)
-        }
-        CommandIndexRow(stringResource(R.string.action_box_kind_reminder), stringResource(R.string.action_box_command_reminder_sub)) {
-            vm.openCommandEdit(CommandEditId.REMINDER)
         }
         if (!vm.independentActionBox) {
             CommandIndexRow(
                 stringResource(R.string.action_box_kind_launcher_settings),
                 stringResource(R.string.action_box_command_launcher_settings_sub),
+                token = "ls",
             ) {
                 vm.openCommandEdit(CommandEditId.LAUNCHER_SETTINGS)
             }
@@ -188,17 +287,16 @@ fun ActionBoxCommandsPage(vm: LauncherViewModel) {
         CommandIndexRow(
             stringResource(R.string.action_box_kind_abs),
             stringResource(R.string.action_box_command_abs_sub),
+            token = "abs",
         ) {
             vm.openCommandEdit(CommandEditId.ACTION_BOX_SETTINGS)
         }
         CommandIndexRow(
             stringResource(R.string.action_box_kind_system_settings),
             stringResource(R.string.action_box_command_system_settings_sub),
+            token = "ss",
         ) {
             vm.openCommandEdit(CommandEditId.SYSTEM_SETTINGS)
-        }
-        CommandIndexRow(stringResource(R.string.action_box_your_commands), stringResource(R.string.action_box_your_commands_hint)) {
-            vm.openCommandEdit(CommandEditId.CUSTOM)
         }
         if (vm.independentActionBox) {
             CommandIndexRow(
@@ -802,17 +900,53 @@ private fun webSearchEngineLabel(engine: WebSearchEngine): String = stringResour
 )
 
 @Composable
-private fun CommandIndexRow(title: String, subtitle: String, onClick: () -> Unit) {
+private fun AbsSectionLabel(text: String) {
     val c = LocalMadTheme.current.colors
-    Column(
+    Text(
+        text,
+        color = c.muted,
+        fontSize = 11.sp,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = 1.2.sp,
+        modifier = Modifier.padding(top = 14.dp, bottom = 2.dp, start = 4.dp),
+    )
+}
+
+@Composable
+private fun CommandIndexRow(
+    title: String,
+    subtitle: String,
+    token: String? = null,
+    onClick: () -> Unit,
+) {
+    val c = LocalMadTheme.current.colors
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(title, color = c.fg, fontWeight = FontWeight.Medium, fontSize = 15.sp)
-        Text(subtitle, color = c.muted, fontSize = 12.sp)
+        if (token != null) {
+            Text(
+                token,
+                color = c.primary,
+                fontWeight = FontWeight.Bold,
+                fontSize = 11.sp,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .border(1.dp, c.primary.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                    .background(c.primary.copy(alpha = 0.12f))
+                    .padding(horizontal = 7.dp, vertical = 4.dp),
+            )
+            Spacer(Modifier.size(10.dp))
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, color = c.fg, fontWeight = FontWeight.Medium, fontSize = 15.sp)
+            Text(subtitle, color = c.muted, fontSize = 12.sp)
+        }
+        Text("›", color = c.muted, fontSize = 18.sp)
     }
 }
 
@@ -822,6 +956,9 @@ fun ActionBoxCommandEditPage(vm: LauncherViewModel) {
     @Suppress("UNUSED_VARIABLE")
     val observed = vm.actionBoxCommandsRev to vm.apps
     when (id) {
+        CommandEditId.HOW_TO -> {
+            ActionBoxHowToPage(onClose = { vm.settingsBack() })
+        }
         CommandEditId.CUSTOM -> {
             Column(
                 modifier = Modifier
@@ -834,6 +971,7 @@ fun ActionBoxCommandEditPage(vm: LauncherViewModel) {
         }
         CommandEditId.SEARCH -> SearchCommandEditPage(vm)
         CommandEditId.COMMON_APPS -> CommonAppsCommandEditPage(vm)
+        CommandEditId.SEARCHABLE_APPS -> SearchableAppsCommandEditPage(vm)
         else -> CommandEditBody(vm, id)
     }
 }
@@ -1037,11 +1175,152 @@ private fun CommonAppsCommandEditPage(vm: LauncherViewModel) {
 }
 
 @Composable
+private fun SearchableAppsCommandEditPage(vm: LauncherViewModel) {
+    val c = LocalMadTheme.current.colors
+    var filter by remember { mutableStateOf("") }
+    @Suppress("UNUSED_VARIABLE")
+    val observed = vm.apps to vm.searchableSubmitRev to vm.searchableSubmittingPkg to vm.searchableApps
+    val (reliable, rest) = remember(vm.apps, vm.searchableApps, vm.searchableSubmitRev) {
+        vm.searchableAppLists()
+    }
+    val q = filter.trim()
+    val shownReliable = if (q.isEmpty()) {
+        reliable
+    } else {
+        reliable.filter { row ->
+            row.app.label.contains(q, ignoreCase = true) ||
+                row.app.packageName.contains(q, ignoreCase = true) ||
+                row.phrases.any { it.contains(q, ignoreCase = true) }
+        }
+    }
+    val shownRest = if (q.isEmpty()) {
+        rest
+    } else {
+        rest.filter { app ->
+            app.label.contains(q, ignoreCase = true) ||
+                app.packageName.contains(q, ignoreCase = true)
+        }
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            stringResource(R.string.action_box_searchable_apps_hint),
+            color = c.muted,
+            fontSize = 12.sp,
+        )
+        BangField(filter, stringResource(R.string.action_box_searchable_apps_filter)) { filter = it }
+        Text(
+            stringResource(R.string.action_box_searchable_apps_ready),
+            color = c.fg,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+        if (shownReliable.isEmpty()) {
+            Text(stringResource(R.string.action_box_searchable_apps_ready_empty), color = c.muted, fontSize = 12.sp)
+        } else {
+            shownReliable.forEach { row ->
+                val kindLabel = stringResource(
+                    if (row.kind == SpaceQueryKind.NAV) {
+                        R.string.action_box_searchable_kind_nav
+                    } else {
+                        R.string.action_box_searchable_kind_search
+                    },
+                )
+                val phrases = row.phrases.joinToString(" · ")
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(c.secondary.copy(alpha = 0.45f))
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                ) {
+                    AppIcon(row.app.icon, row.app.label, size = 28.dp)
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(start = 10.dp),
+                    ) {
+                        Text(row.app.label, color = c.fg, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            if (phrases.isBlank()) kindLabel else "$kindLabel · $phrases",
+                            color = c.muted,
+                            fontSize = 11.sp,
+                        )
+                    }
+                }
+            }
+        }
+        Text(
+            stringResource(R.string.action_box_searchable_apps_request),
+            color = c.fg,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+        Text(
+            stringResource(R.string.action_box_searchable_apps_request_hint),
+            color = c.muted,
+            fontSize = 12.sp,
+        )
+        if (shownRest.isEmpty()) {
+            Text(stringResource(R.string.action_box_searchable_apps_request_empty), color = c.muted, fontSize = 12.sp)
+        } else {
+            shownRest.forEach { app ->
+                val submitted = vm.hasSubmittedSearchable(app.packageName)
+                val busy = vm.searchableSubmittingPkg == app.packageName
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(c.secondary.copy(alpha = 0.45f))
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                ) {
+                    AppIcon(app.icon, app.label, size = 28.dp)
+                    Text(
+                        app.label,
+                        color = c.fg,
+                        fontSize = 13.sp,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 10.dp),
+                    )
+                    Text(
+                        when {
+                            submitted -> stringResource(R.string.action_box_searchable_submitted)
+                            busy -> stringResource(R.string.action_box_searchable_sending)
+                            else -> stringResource(R.string.action_box_searchable_submit)
+                        },
+                        color = if (submitted) c.muted else c.bg,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (submitted) c.secondary else c.primary)
+                            .clickable(enabled = !submitted && !busy && vm.searchableSubmittingPkg == null) {
+                                vm.submitSearchableApp(app)
+                            }
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun commonAddonLabel(addon: SpaceAddon): String = stringResource(
     when (addon) {
         SpaceAddon.CALC -> R.string.action_box_common_addon_calc
         SpaceAddon.SEARCH -> R.string.action_box_common_addon_search
-        SpaceAddon.NAV -> R.string.action_box_common_addon_nav
+        SpaceAddon.NAV -> R.string.action_box_common_addon_search
         SpaceAddon.NOTE -> R.string.action_box_common_addon_note
         SpaceAddon.CALL -> R.string.action_box_common_addon_call
         SpaceAddon.CHAT -> R.string.action_box_common_addon_chat
@@ -1052,6 +1331,7 @@ private fun commonAddonLabel(addon: SpaceAddon): String = stringResource(
         SpaceAddon.TRANSLATE -> R.string.action_box_common_addon_translate
         SpaceAddon.AI -> R.string.action_box_common_addon_ai
         SpaceAddon.OPEN -> R.string.action_box_common_addon_open
+        SpaceAddon.POST -> R.string.action_box_common_addon_search
     },
 )
 

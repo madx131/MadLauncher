@@ -17,6 +17,7 @@ import android.provider.ContactsContract
 import android.provider.Settings
 import com.madlauncher.LauncherCommands
 import com.madlauncher.MadApp
+import com.madlauncher.a11y.MessengerSearchBridge
 import com.madlauncher.a11y.OttCallBridge
 import com.madlauncher.a11y.OttChatSendBridge
 import com.madlauncher.action.WhatsAppCallBridge
@@ -35,6 +36,45 @@ object WeatherLaunchGuard {
             pkg.contains(".mweather") ||
             pkg == "com.miui.weather2"
     }
+}
+
+/** How `@` / `&` opens a picked contact. Mail is only a real mail app. */
+internal enum class DirectConversation {
+    WhatsApp,
+    Telegram,
+    Signal,
+    Mail,
+    Sms,
+    Search,
+}
+
+internal fun directConversation(packageName: String, hasPhone: Boolean, hasEmail: Boolean): DirectConversation {
+    val pkg = packageName.lowercase()
+    return when {
+        pkg.contains("whatsapp") -> DirectConversation.WhatsApp
+        pkg.contains("telegram") -> DirectConversation.Telegram
+        pkg.contains("signal") -> DirectConversation.Signal
+        hasEmail && isMailPackage(pkg) -> DirectConversation.Mail
+        hasPhone && isSmsPackage(pkg) -> DirectConversation.Sms
+        else -> DirectConversation.Search
+    }
+}
+
+internal fun isMailPackage(packageName: String): Boolean {
+    val pkg = packageName.lowercase()
+    if (pkg.contains("messaging")) return false
+    return pkg.contains(".gm") || pkg.contains("mail") || pkg.contains("outlook")
+}
+
+/** SMS / MMS handlers — not WhatsApp, Messenger, and the other chat apps. */
+internal fun isSmsPackage(packageName: String): Boolean {
+    val pkg = packageName.lowercase()
+    val ott = listOf(
+        "whatsapp", "telegram", "signal", "viber", "discord", "slack",
+        "threema", "line.android", "kakao", "wechat", "skype",
+        "facebook.orca", "messenger",
+    )
+    return ott.none { pkg.contains(it) }
 }
 
 sealed class SendMessageResult {
@@ -238,17 +278,18 @@ class IntentExecutor(
     }
 
     fun navigate(app: InstalledActionApp, destination: String) {
-        val dest = Uri.encode(destination)
-        val uri = when {
-            app.packageName.contains("waze") ->
-                Uri.parse("https://waze.com/ul?q=$dest&navigate=yes")
-            else ->
-                Uri.parse("https://www.google.com/maps/dir/?api=1&destination=$dest")
+        val dest = destination.trim()
+        if (dest.isEmpty()) return
+        val pkg = app.packageName
+        for (url in NavIntents.navigateUris(pkg, dest)) {
+            val uri = Uri.parse(url)
+            if (startIfResolvableInPackage(Intent(Intent.ACTION_VIEW, uri).setPackage(pkg), pkg)) {
+                return
+            }
         }
-        val intent = Intent(Intent.ACTION_VIEW, uri).setPackage(app.packageName)
-        if (!startIfResolvable(intent)) {
-            start(Intent(Intent.ACTION_VIEW, uri))
-        }
+        if (startPackageSearch(Intent.ACTION_SEARCH, pkg, dest)) return
+        val fallback = NavIntents.navigateUris(pkg, dest).firstOrNull() ?: return
+        start(Intent(Intent.ACTION_VIEW, Uri.parse(fallback)))
     }
 
     fun sendMessage(app: InstalledActionApp, contact: ContactEntry, body: String): SendMessageResult {
@@ -282,19 +323,24 @@ class IntentExecutor(
         val pkg = app.packageName.lowercase()
         val phone = contact.phone.orEmpty().trim()
         val email = contact.email.orEmpty().trim()
-        val opened = when {
-            pkg.contains("whatsapp") -> openWhatsAppThread(phone, app.packageName, contact)
-            pkg.contains("telegram") -> openTelegramThread(app.packageName, phone)
-            pkg.contains("signal") -> openSignalThread(phone, app.packageName)
-            pkg.contains("facebook.orca") || pkg.contains("messenger") ->
-                openMessengerThread(contact, app.packageName)
-            email.isNotBlank() && (pkg.contains(".gm") || pkg.contains("mail") || pkg.contains("outlook")) ->
-                openMailto(email, app.packageName)
-            phone.isNotBlank() && isSmsHandler(pkg) -> openSmsThread(phone, app.packageName)
-            email.isNotBlank() -> openMailto(email, app.packageName)
-            else -> false
+        val opened = when (directConversation(pkg, phone.isNotBlank(), email.isNotBlank())) {
+            DirectConversation.WhatsApp -> openWhatsAppThread(phone, app.packageName, contact)
+            DirectConversation.Telegram -> openTelegramThread(app.packageName, phone)
+            DirectConversation.Signal -> openSignalThread(phone, app.packageName)
+            DirectConversation.Mail -> openMailto(email, app.packageName)
+            DirectConversation.Sms -> openSmsThread(phone, app.packageName)
+            DirectConversation.Search -> false
         }
         if (opened) return true
+        val name = contact.name.trim()
+        if (name.isNotBlank() && !isMailApp(pkg)) {
+            MessengerSearchBridge.begin(context, app.packageName, name)
+            return true
+        }
+        if (ReusedBrowser.openIfEnabled(context, app.packageName)) return true
+        if (SocialInbox.hasInbox(app.packageName)) {
+            return SocialInbox.open(context, app.packageName) is InboxOpenResult.Opened
+        }
         return launchLauncherActivity(app.packageName)
     }
 
@@ -302,15 +348,7 @@ class IntentExecutor(
         SocialPostBridge.openComposer(context, app.packageName)
 
     /** SMS / MMS handlers (Messages, Samsung Messaging, …) — not OTT apps. */
-    private fun isSmsHandler(packageName: String): Boolean {
-        val p = packageName.lowercase()
-        val ott = listOf(
-            "whatsapp", "telegram", "signal", "viber", "discord", "slack",
-            "threema", "line.android", "kakao", "wechat", "skype",
-            "facebook.orca", "messenger",
-        )
-        return ott.none { p.contains(it) }
-    }
+    private fun isSmsHandler(packageName: String): Boolean = isSmsPackage(packageName)
 
     private fun openSmsComposer(phone: String, body: String, packageName: String): SendMessageResult {
         val dest = normalizePhone(phone)
@@ -475,28 +513,7 @@ class IntentExecutor(
         return startIfResolvable(Intent(Intent.ACTION_VIEW, uri).setPackage(packageName))
     }
 
-    private fun openMessengerThread(contact: ContactEntry, packageName: String): Boolean {
-        val thread = ContactReach.threadKey(contact)
-        val digits = ContactReach.phoneDigits(contact)
-        val tries = buildList {
-            thread?.let {
-                add("fb-messenger://user/$it")
-                add("fb-messenger://thread/$it")
-                add("https://m.me/$it")
-            }
-            digits?.let {
-                add("fb-messenger://user/$it")
-                add("https://m.me/$it")
-            }
-        }
-        for (u in tries) {
-            val view = Intent(Intent.ACTION_VIEW, Uri.parse(u))
-            if (startIfResolvable(Intent(view).setPackage(packageName)) || startIfResolvable(view)) {
-                return true
-            }
-        }
-        return false
-    }
+    private fun isMailApp(packageName: String): Boolean = isMailPackage(packageName)
 
     private fun openMailto(email: String, packageName: String): Boolean {
         val mailto = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:$email")).setPackage(packageName)

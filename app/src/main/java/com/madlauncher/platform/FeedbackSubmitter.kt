@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import androidx.core.content.FileProvider
+import com.madlauncher.action.SearchableAppRequest
 import com.madlauncher.data.RepoContents
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -12,6 +13,7 @@ import java.io.File
 /**
  * Compatibility reports → GitHub `reports/compat/`.
  * Help-improve / bug notes → GitHub `reports/messages/`.
+ * Searchable-app requests → GitHub `reports/searchable/`.
  * Failures stay local; do not open a share sheet (that is not the review path).
  */
 object FeedbackSubmitter {
@@ -19,6 +21,7 @@ object FeedbackSubmitter {
 
     const val GITHUB_COMPAT_DIR = "reports/compat"
     const val GITHUB_MESSAGES_DIR = "reports/messages"
+    const val GITHUB_SEARCHABLE_DIR = "reports/searchable"
 
     enum class SubmitOutcome {
         GITHUB_OK,
@@ -115,6 +118,49 @@ object FeedbackSubmitter {
                 "Could not send — GitHub token missing"
             } else {
                 "Could not upload to GitHub (${put.error.take(80)})"
+            },
+        )
+    }
+
+    suspend fun submitSearchableRequest(
+        context: Context,
+        request: SearchableAppRequest,
+    ): SubmitResult = withContext(Dispatchers.IO) {
+        val dir = File(context.filesDir, "searchable-requests").apply { mkdirs() }
+        val base = request.fileBase()
+        val file = File(dir, "$base.txt")
+        runCatching { file.writeText(request.toPlainText()) }
+        val txtPut = RepoContents.putText(
+            context,
+            "$GITHUB_SEARCHABLE_DIR/${file.name}",
+            request.toPlainText(),
+            "searchable: ${request.packageName}",
+        )
+        if (txtPut.ok) {
+            runCatching {
+                RepoContents.putText(
+                    context,
+                    "$GITHUB_SEARCHABLE_DIR/$base.json",
+                    request.toJson(),
+                    "searchable json: ${request.packageName}",
+                )
+            }
+            return@withContext SubmitResult(
+                SubmitOutcome.GITHUB_OK,
+                file,
+                "Sent ${request.appLabel} — we'll try to wire it",
+                txtPut.htmlUrl,
+            )
+        }
+        Log.w(TAG, "GitHub searchable upload failed: ${txtPut.error}")
+        val err = txtPut.error.take(80)
+        SubmitResult(
+            SubmitOutcome.SAVED_LOCAL,
+            file,
+            if (txtPut.error.contains("token", ignoreCase = true)) {
+                "Could not upload — GitHub token missing"
+            } else {
+                "Could not upload to GitHub ($err)"
             },
         )
     }

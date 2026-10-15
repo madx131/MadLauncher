@@ -198,12 +198,12 @@ private fun DockSlotView(
             "phone", "browser" -> {
                 val app = vm.resolveDockApp(index)
                 if (app != null) AppDockIcon(vm, index, app, c, iconSize)
-                else EmptyDockSlot(c, iconSize)
+                else EmptyDockSlot(c, iconSize, vm.displayAppearance.iconLabelSizeSp)
             }
             else -> {
                 val app = vm.resolveDockApp(index)
                 if (app != null) AppDockIcon(vm, index, app, c, iconSize)
-                else EmptyDockSlot(c, iconSize)
+                else EmptyDockSlot(c, iconSize, vm.displayAppearance.iconLabelSizeSp)
             }
         }
     }
@@ -255,7 +255,7 @@ private fun SpecialDockIcon(
                 Icon(icon, contentDescription = label, tint = color, modifier = Modifier.size(iconSize * 0.72f))
             }
             Spacer(Modifier.height(4.dp))
-            Text(label, color = muted, fontSize = 10.sp, letterSpacing = 0.2.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(label, color = muted, fontSize = iconLabelSize(vm.displayAppearance.iconLabelSizeSp), letterSpacing = 0.2.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -289,7 +289,7 @@ private fun AppDockIcon(vm: LauncherViewModel, index: Int, app: LaunchableApp, c
             Text(
                 app.label,
                 color = c.muted,
-                fontSize = 10.sp,
+                fontSize = iconLabelSize(vm.displayAppearance.iconLabelSizeSp),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -298,11 +298,11 @@ private fun AppDockIcon(vm: LauncherViewModel, index: Int, app: LaunchableApp, c
 }
 
 @Composable
-private fun EmptyDockSlot(c: MadColors, iconSize: Dp) {
+private fun EmptyDockSlot(c: MadColors, iconSize: Dp, labelSp: Float) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(modifier = Modifier.size(iconSize))
         Spacer(Modifier.height(4.dp))
-        Text(" ", color = c.muted, fontSize = 10.sp)
+        Text(" ", color = c.muted, fontSize = iconLabelSize(labelSp))
     }
 }
 
@@ -340,6 +340,6 @@ private fun ActionsPill(vm: LauncherViewModel, index: Int, c: MadColors, text: C
             )
         }
         Spacer(Modifier.height(4.dp))
-        Text(" ", color = c.muted, fontSize = 10.sp)
+        Text(" ", color = c.muted, fontSize = iconLabelSize(vm.displayAppearance.iconLabelSizeSp))
     }
 }

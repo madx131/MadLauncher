@@ -36,6 +36,8 @@ data class PlatformProfile(
                 PlatformFeature.ACTIONBOX_TRANSLATE to FeatureStatus.UNKNOWN,
                 PlatformFeature.ACTIONBOX_NOTES to FeatureStatus.UNKNOWN,
                 PlatformFeature.ACTIONBOX_NAV to FeatureStatus.UNKNOWN,
+                PlatformFeature.ACTIONBOX_SOCIAL_DM to FeatureStatus.UNAVAILABLE,
+                PlatformFeature.ACTIONBOX_TRUTH_POST to FeatureStatus.UNAVAILABLE,
             )
             return when (family) {
                 OemFamily.STOCK, OemFamily.SAMSUNG, OemFamily.ONEPLUS -> mapOf(

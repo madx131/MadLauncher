@@ -5,6 +5,8 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.Rect
+import android.graphics.RectF
 import android.graphics.drawable.AdaptiveIconDrawable
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.DrawableWrapper
@@ -24,20 +26,30 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.asAndroidPath
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import com.madlauncher.data.IconBadgeStyle
+import com.madlauncher.R
 import com.madlauncher.data.IconShapeId
+import com.madlauncher.ui.theme.IconLogoSlot
+import com.madlauncher.ui.theme.IconShapes
 import com.madlauncher.ui.theme.LocalMadTheme
 import com.madlauncher.ui.theme.MadTheme
+import android.graphics.Path as AndroidPath
 import kotlin.math.max
 import kotlin.math.min
 import android.graphics.Color as AndroidColor
@@ -53,7 +65,6 @@ fun AppIcon(
 ) {
     val theme = LocalMadTheme.current
     val shapeId = theme.iconShape
-    val adaptive = shapeId == IconShapeId.ADAPTIVE
     val shape = MadTheme.iconClip(shapeId, theme.iconCornerDp)
     val density = LocalDensity.current
     val context = LocalContext.current
@@ -61,116 +72,271 @@ fun AppIcon(
         with(density) { size.roundToPx() }.coerceIn(48, 256)
     }
     val bgAlpha = theme.iconBgAlpha.coerceIn(0f, 1f)
-    val bmp = remember(drawable, px, shapeId, bgAlpha, packageName, activityName) {
-        if (adaptive) {
-            rasterizeAdaptiveStyle(context, drawable, px, bgAlpha, packageName, activityName)
-        } else {
-            rasterizeForMadShape(context, drawable, px, bgAlpha, packageName, activityName)
-        }
+    val fillOnly = IconShapes.shapesFillOnly(shapeId)
+    val logoSlot = IconShapes.logoSlot(shapeId)
+    val adaptiveInset = IconShapes.usesAdaptiveInset(shapeId)
+    // Rasterize without the OEM adaptive mask, then clip to the MAD shape.
+    val bmp = remember(drawable, px, shapeId, theme.iconCornerDp, bgAlpha, packageName, activityName) {
+        rasterizeForMadShape(
+            context, drawable, px, bgAlpha, shape, density, fillOnly, logoSlot, adaptiveInset, packageName, activityName,
+        )
     }
     if (bmp != null) {
         Image(
             bitmap = bmp.asImageBitmap(),
             contentDescription = contentDescription,
-            contentScale = if (adaptive) ContentScale.Fit else ContentScale.Crop,
+            contentScale = ContentScale.Crop,
             modifier = Modifier
                 .size(size)
-                .then(if (adaptive) Modifier else Modifier.clip(shape)),
+                .clip(shape),
         )
     } else {
         Box(
             modifier = Modifier
                 .size(size)
-                .then(if (adaptive) Modifier else Modifier.clip(shape))
+                .clip(shape)
                 .background(theme.colors.primary),
         )
     }
 }
 
 /**
- * Freeform / adaptive style: keep each app’s own silhouette (Edge, BlueStacks).
- * Prefer the PackageManager drawable as delivered — do not force a MAD mask or fill plate.
- * AdaptiveIconDrawable is drawn with the system mask so OEM squircles stay, without a plate.
- */
-private fun rasterizeAdaptiveStyle(
-    context: Context,
-    drawable: Drawable?,
-    px: Int,
-    bgAlpha: Float,
-    packageName: String?,
-    activityName: String?,
-): Bitmap? {
-    val source = drawable
-        ?: packageName?.let { loadApplicationIcon(context, it, activityName) }
-        ?: return null
-    val adaptive = unwrapAdaptive(source)
-        ?: packageName?.let { loadAdaptiveFromResources(context, it, activityName) }
-    if (adaptive != null) {
-        // System mask path — not a full opaque square, and not a MAD rounded clip.
-        return rasterizeSystemAdaptive(adaptive, px, bgAlpha)
-    }
-    val raw = source.toBitmap(px, px, Bitmap.Config.ARGB_8888)
-    // Never plate: transparent corners stay transparent so silhouettes show.
-    return raw
-}
-
-private fun rasterizeSystemAdaptive(drawable: AdaptiveIconDrawable, px: Int, bgAlpha: Float): Bitmap {
-    val bmp = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888)
-    val canvas = Canvas(bmp)
-    val fill = bgAlpha.coerceIn(0f, 1f)
-    // Draw through AdaptiveIconDrawable so the platform mask applies (silhouette / squircle).
-    val oldBg = drawable.background?.alpha
-    if (fill < 0.999f) {
-        drawable.background?.alpha = (fill * 255f).toInt().coerceIn(0, 255)
-    }
-    drawable.setBounds(0, 0, px, px)
-    drawable.draw(canvas)
-    if (oldBg != null) drawable.background?.alpha = oldBg
-    return bmp
-}
-
-/**
  * Draw adaptive foreground+background as a full square (no system squircle mask).
- * MAD then clips with [MadTheme.iconClip] so circle/square/teardrop differences show.
- * [bgAlpha] fades only the app's own background layer; the glyph stays solid.
- * Non-adaptive / OEM-pre-masked icons get a fill plate so they occupy the same shape.
+ * Playful shapes clip the fill and place the logo on [IconLogoSlot].
+ * Classic shapes stay full-bleed and are clipped in Compose.
+ * [bgAlpha] fades only the background layer.
  */
 private fun rasterizeForMadShape(
     context: Context,
     drawable: Drawable?,
     px: Int,
     bgAlpha: Float,
+    shape: Shape,
+    density: Density,
+    fillOnly: Boolean,
+    logoSlot: IconLogoSlot,
+    adaptiveInset: Boolean,
     packageName: String?,
     activityName: String?,
 ): Bitmap? {
     val adaptive = unwrapAdaptive(drawable)
         ?: packageName?.let { loadAdaptiveFromResources(context, it, activityName) }
-    val raw = when {
-        adaptive != null -> rasterizeAdaptiveLayers(adaptive, px, bgAlpha)
-        drawable != null -> drawable.toBitmap(px, px, Bitmap.Config.ARGB_8888)
-        else -> return null
+    if (adaptiveInset) {
+        return rasterizeSystemAdaptive(drawable, adaptive, px, bgAlpha, shape, density)
     }
-    return applyPlateIfNeeded(raw, bgAlpha)
+    if (adaptive != null) return rasterizeAdaptive(adaptive, px, bgAlpha, shape, density, clipAll = fillOnly, logoSlot)
+    if (drawable == null) return null
+    val raw = drawable.toBitmap(px, px, Bitmap.Config.ARGB_8888)
+    return if (fillOnly) maskIconFill(raw, shape, density, bgAlpha, logoSlot) else applyPlateIfNeeded(raw, bgAlpha)
 }
 
-private fun rasterizeAdaptiveLayers(drawable: AdaptiveIconDrawable, px: Int, bgAlpha: Float): Bitmap {
+/** Custom home icons. The logo is parked on the shape's center when the mask has one. */
+internal fun maskIconFill(
+    src: Bitmap,
+    shape: Shape,
+    density: Density,
+    bgAlpha: Float,
+    logoSlot: IconLogoSlot,
+): Bitmap {
+    val bmp = Bitmap.createBitmap(src.width, src.height, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bmp)
+    val plate = samplePlateColor(src)
+    val fill = bgAlpha.coerceIn(0f, 1f)
+    canvas.withClip(shape, density) {
+        if (plate != AndroidColor.TRANSPARENT && fill > 0.001f) {
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = plate
+                alpha = (fill * 255f).toInt().coerceIn(0, 255)
+            }
+            drawRect(0f, 0f, src.width.toFloat(), src.height.toFloat(), paint)
+        }
+        drawLogoBitmap(src, logoSlot)
+    }
+    return bmp
+}
+
+private fun Canvas.drawLogoBitmap(src: Bitmap, slot: IconLogoSlot) {
+    val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+    if (!slot.placesLogo) {
+        drawBitmap(src, 0f, 0f, paint)
+        return
+    }
+    val side = width * slot.scale
+    val left = slot.centerX * width - side / 2f
+    val top = slot.centerY * height - side / 2f
+    drawBitmap(src, null, RectF(left, top, left + side, top + side), paint)
+}
+
+/**
+ * One clip. Adaptive layers use the system 1.5× canvas so the glyph stays in the
+ * safe zone. A legacy bitmap with transparent corners is scaled to that same zone;
+ * a solid bitmap is clipped as a whole.
+ */
+private fun rasterizeSystemAdaptive(
+    drawable: Drawable?,
+    adaptive: AdaptiveIconDrawable?,
+    px: Int,
+    bgAlpha: Float,
+    shape: Shape,
+    density: Density,
+): Bitmap? {
+    if (adaptive == null && drawable == null) return null
     val bmp = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bmp)
     val fill = bgAlpha.coerceIn(0f, 1f)
+    val layer = (px * (1f + 2f * AdaptiveIconDrawable.getExtraInsetFraction())).toInt()
+    val offset = (px - layer) / 2
+    val bounds = Rect(offset, offset, offset + layer, offset + layer)
+    canvas.withClip(shape, density) {
+        if (adaptive != null) {
+            drawAdaptiveExpanded(adaptive, bounds, fill)
+        } else {
+            val raw = drawable!!.toBitmap(px, px, Bitmap.Config.ARGB_8888)
+            val plate = samplePlateColor(raw)
+            if (plate != AndroidColor.TRANSPARENT) {
+                if (fill > 0.001f) {
+                    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = plate
+                        alpha = (fill * 255f).toInt().coerceIn(0, 255)
+                    }
+                    drawRect(0f, 0f, px.toFloat(), px.toFloat(), paint)
+                }
+                val side = px * 0.70f
+                val left = (px - side) / 2f
+                drawBitmap(raw, null, RectF(left, left, left + side, left + side), Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
+            } else {
+                drawBitmap(raw, 0f, 0f, null)
+            }
+        }
+    }
+    return bmp
+}
+
+private fun Canvas.drawAdaptiveExpanded(drawable: AdaptiveIconDrawable, bounds: Rect, fill: Float) {
+    if (fill > 0.001f) {
+        drawable.background?.mutate()?.let { layer ->
+            val old = layer.alpha
+            layer.alpha = (fill * 255f).toInt().coerceIn(0, 255)
+            layer.setBounds(bounds.left, bounds.top, bounds.right, bounds.bottom)
+            layer.draw(this)
+            layer.alpha = old
+        }
+    }
+    drawable.foreground?.mutate()?.let { layer ->
+        if (layer is android.graphics.drawable.BitmapDrawable) layer.setFilterBitmap(true)
+        layer.setBounds(bounds.left, bounds.top, bounds.right, bounds.bottom)
+        layer.draw(this)
+    }
+}
+
+private fun rasterizeAdaptive(
+    drawable: AdaptiveIconDrawable,
+    px: Int,
+    bgAlpha: Float,
+    shape: Shape,
+    density: Density,
+    clipAll: Boolean,
+    logoSlot: IconLogoSlot,
+): Bitmap {
+    val bmp = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bmp)
+    val fill = bgAlpha.coerceIn(0f, 1f)
+    if (clipAll) {
+        canvas.withClip(shape, density) {
+            drawAdaptiveLayers(drawable, px, fill, logoSlot)
+        }
+    } else {
+        canvas.drawAdaptiveLayers(drawable, px, fill, IconLogoSlot())
+    }
+    return bmp
+}
+
+private fun Canvas.drawAdaptiveLayers(
+    drawable: AdaptiveIconDrawable,
+    px: Int,
+    fill: Float,
+    logoSlot: IconLogoSlot,
+) {
     if (fill > 0.001f) {
         drawable.background?.mutate()?.let { layer ->
             val old = layer.alpha
             layer.alpha = (fill * 255f).toInt().coerceIn(0, 255)
             layer.setBounds(0, 0, px, px)
-            layer.draw(canvas)
+            layer.draw(this)
             layer.alpha = old
         }
     }
+    drawForeground(drawable, px, logoSlot)
+}
+
+private fun Canvas.drawForeground(drawable: AdaptiveIconDrawable, px: Int, slot: IconLogoSlot) {
     drawable.foreground?.mutate()?.let { layer ->
-        layer.setBounds(0, 0, px, px)
-        layer.draw(canvas)
+        if (layer is android.graphics.drawable.BitmapDrawable) layer.setFilterBitmap(true)
+        if (!slot.placesLogo) {
+            layer.setBounds(0, 0, px, px)
+        } else {
+            val side = px * slot.scale
+            val left = (slot.centerX * px - side / 2f).toInt()
+            val top = (slot.centerY * px - side / 2f).toInt()
+            layer.setBounds(
+                left,
+                top,
+                (left + side).toInt().coerceAtLeast(left + 1),
+                (top + side).toInt().coerceAtLeast(top + 1),
+            )
+        }
+        layer.draw(this)
     }
-    return bmp
+}
+
+/**
+ * Shape-picker chip. Draws this launcher's own icon in [shapeId], using the same
+ * mask and logo center as the home screen, so the menu matches a tap immediately.
+ */
+@Composable
+fun MadShapePreview(shapeId: IconShapeId, size: Dp, iconBgAlpha: Float) {
+    val theme = LocalMadTheme.current
+    val shape = MadTheme.iconClip(shapeId, MadTheme.cornerDpFor(shapeId))
+    val density = LocalDensity.current
+    val context = LocalContext.current
+    val px = remember(size, density) {
+        with(density) { size.roundToPx() }.coerceIn(48, 256)
+    }
+    val bgAlpha = iconBgAlpha.coerceIn(0f, 1f)
+    val drawable = remember(context.packageName) {
+        runCatching { context.packageManager.getApplicationIcon(context.packageName) }.getOrNull()
+            ?: context.getDrawable(R.mipmap.ic_launcher)
+    }
+    val bmp = remember(drawable, px, shapeId, bgAlpha) {
+        rasterizeForMadShape(
+            context,
+            drawable,
+            px,
+            bgAlpha,
+            shape,
+            density,
+            IconShapes.shapesFillOnly(shapeId),
+            IconShapes.logoSlot(shapeId),
+            IconShapes.usesAdaptiveInset(shapeId),
+            context.packageName,
+            null,
+        )
+    }
+    if (bmp != null) {
+        Image(
+            bitmap = bmp.asImageBitmap(),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.size(size).clip(shape),
+        )
+    } else {
+        Box(
+            modifier = Modifier
+                .size(size)
+                .clip(shape)
+                .background(theme.colors.primary),
+        )
+    }
 }
 
 private fun applyPlateIfNeeded(src: Bitmap, bgAlpha: Float): Bitmap {
@@ -185,6 +351,39 @@ private fun applyPlateIfNeeded(src: Bitmap, bgAlpha: Float): Bitmap {
     canvas.drawRect(0f, 0f, src.width.toFloat(), src.height.toFloat(), paint)
     canvas.drawBitmap(src, 0f, 0f, null)
     return bmp
+}
+
+private inline fun Canvas.withClip(shape: Shape, density: Density, draw: Canvas.() -> Unit) {
+    val path = androidClip(shape, width.toFloat(), height.toFloat(), density)
+    save()
+    clipPath(path)
+    try {
+        draw()
+    } finally {
+        restore()
+    }
+}
+
+private fun androidClip(shape: Shape, width: Float, height: Float, density: Density): AndroidPath {
+    val outline = shape.createOutline(Size(width, height), LayoutDirection.Ltr, density)
+    return when (outline) {
+        is Outline.Generic -> AndroidPath(outline.path.asAndroidPath())
+        is Outline.Rectangle -> AndroidPath().apply {
+            addRect(outline.rect.left, outline.rect.top, outline.rect.right, outline.rect.bottom, AndroidPath.Direction.CW)
+        }
+        is Outline.Rounded -> {
+            val r = outline.roundRect
+            val radii = floatArrayOf(
+                r.topLeftCornerRadius.x, r.topLeftCornerRadius.y,
+                r.topRightCornerRadius.x, r.topRightCornerRadius.y,
+                r.bottomRightCornerRadius.x, r.bottomRightCornerRadius.y,
+                r.bottomLeftCornerRadius.x, r.bottomLeftCornerRadius.y,
+            )
+            AndroidPath().apply {
+                addRoundRect(RectF(r.left, r.top, r.right, r.bottom), radii, AndroidPath.Direction.CW)
+            }
+        }
+    }
 }
 
 private fun unwrapAdaptive(drawable: Drawable?): AdaptiveIconDrawable? {
@@ -214,20 +413,6 @@ private fun unwrapAdaptive(drawable: Drawable?): AdaptiveIconDrawable? {
         }
     }
     return null
-}
-
-private fun loadApplicationIcon(
-    context: Context,
-    packageName: String,
-    activityName: String?,
-): Drawable? {
-    val pm = context.packageManager
-    if (!activityName.isNullOrBlank()) {
-        runCatching {
-            pm.getActivityIcon(ComponentName(packageName, activityName))
-        }.getOrNull()?.let { return it }
-    }
-    return runCatching { pm.getApplicationIcon(packageName) }.getOrNull()
 }
 
 private fun loadAdaptiveFromResources(
@@ -273,6 +458,13 @@ private fun samplePlateColor(bmp: Bitmap): Int {
         inset to h - 1 - inset, w - 1 - inset to h - 1 - inset,
     ).all { (x, y) -> alphaAt(x, y) < 48 }
     if (!cornersTransparent) return AndroidColor.TRANSPARENT
+    return dominantOpaqueColor(bmp)
+}
+
+private fun dominantOpaqueColor(bmp: Bitmap): Int {
+    val w = bmp.width
+    val h = bmp.height
+    if (w < 2 || h < 2) return AndroidColor.TRANSPARENT
     val counts = HashMap<Int, Int>()
     val step = max(1, min(w, h) / 36)
     for (y in 0 until h step step) {

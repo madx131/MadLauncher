@@ -32,10 +32,20 @@ class ContactsRepository(private val context: Context) {
     }
 
     private fun queryPhones(query: String): List<ContactEntry> {
+        val needles = NameKey.needles(query)
+        if (needles.isEmpty()) return queryPhoneRows(null, null)
+        val out = linkedMapOf<String, ContactEntry>()
+        val column = foldedColumn(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
+        for (needle in needles) {
+            for (entry in queryPhoneRows("$column LIKE ?", arrayOf("%$needle%"))) {
+                out.putIfAbsent(entry.id, entry)
+            }
+        }
+        return out.values.toList()
+    }
+
+    private fun queryPhoneRows(selection: String?, args: Array<String>?): List<ContactEntry> {
         val cr = context.contentResolver
-        val selection = if (query.isBlank()) null
-        else "${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME} LIKE ?"
-        val args = if (query.isBlank()) null else arrayOf("%$query%")
         val cursor = cr.query(
             ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
             arrayOf(
@@ -62,14 +72,24 @@ class ContactsRepository(private val context: Context) {
                 )
             }
         }
-        return out.values.toList().take(40)
+        return out.values.toList().take(80)
     }
 
     private fun queryEmails(query: String): List<ContactEntry> {
+        val needles = NameKey.needles(query)
+        if (needles.isEmpty()) return queryEmailRows(null, null)
+        val out = linkedMapOf<String, ContactEntry>()
+        val column = foldedColumn(ContactsContract.CommonDataKinds.Email.DISPLAY_NAME)
+        for (needle in needles) {
+            for (entry in queryEmailRows("$column LIKE ?", arrayOf("%$needle%"))) {
+                out.putIfAbsent(entry.id, entry)
+            }
+        }
+        return out.values.toList()
+    }
+
+    private fun queryEmailRows(selection: String?, args: Array<String>?): List<ContactEntry> {
         val cr = context.contentResolver
-        val selection = if (query.isBlank()) null
-        else "${ContactsContract.CommonDataKinds.Email.DISPLAY_NAME} LIKE ?"
-        val args = if (query.isBlank()) null else arrayOf("%$query%")
         val cursor = cr.query(
             ContactsContract.CommonDataKinds.Email.CONTENT_URI,
             arrayOf(
@@ -96,6 +116,15 @@ class ContactsRepository(private val context: Context) {
                 )
             }
         }
-        return out.values.toList().take(40)
+        return out.values.toList().take(80)
+    }
+
+    /** Apostrophes removed so Pe'er matches a search for peer. */
+    private fun foldedColumn(column: String): String {
+        var expr = "LOWER($column)"
+        for (mark in listOf("'", "’", "ʼ", "`", "׳", "´")) {
+            expr = "REPLACE($expr, '${mark.replace("'", "''")}', '')"
+        }
+        return expr
     }
 }

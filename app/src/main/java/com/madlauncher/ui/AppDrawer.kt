@@ -427,7 +427,7 @@ private fun DrawerRecentRow(
                     Text(
                         item.app.label,
                         color = fg,
-                        fontSize = 10.sp,
+                        fontSize = iconLabelSize(vm.displayAppearance.iconLabelSizeSp),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         textAlign = TextAlign.Center,
@@ -477,7 +477,7 @@ private fun AppGridCell(
             Text(
                 app.label,
                 color = fg,
-                fontSize = 11.sp,
+                fontSize = iconLabelSize(vm.displayAppearance.iconLabelSizeSp),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center,

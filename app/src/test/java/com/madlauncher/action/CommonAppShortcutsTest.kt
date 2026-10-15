@@ -25,6 +25,15 @@ class CommonAppShortcutsTest {
         assertTrue(sp is ActionCommand.OpenCommonApp)
         assertEquals("spotify", (sp as ActionCommand.OpenCommonApp).shortcutId)
 
+        val x = CommandDetector.detect("x")
+        assertTrue(x is ActionCommand.OpenCommonApp)
+        assertEquals("x", (x as ActionCommand.OpenCommonApp).shortcutId)
+        assertEquals(SpaceAddon.POST, CommonAppShortcuts.byId("instagram")?.addon)
+        assertEquals(SpaceAddon.POST, CommonAppShortcuts.byId("facebook")?.addon)
+        assertEquals(SpaceAddon.POST, CommonAppShortcuts.byId("x")?.addon)
+        assertEquals(SpaceAddon.POST, CommonAppShortcuts.byId("truth")?.addon)
+        assertEquals(SpaceAddon.POST, CommonAppShortcuts.byId("bluesky")?.addon)
+
         val wa = CommandDetector.detect("wa")
         assertTrue(wa is ActionCommand.OpenCommonApp)
         assertEquals("whatsapp", (wa as ActionCommand.OpenCommonApp).shortcutId)
@@ -59,10 +68,27 @@ class CommonAppShortcutsTest {
         assertTrue(maps is ActionCommand.OpenCommonApp)
         assertEquals("paris", (maps as ActionCommand.OpenCommonApp).payload)
 
+        val waze = CommandDetector.detect("waze")
+        assertTrue(waze is ActionCommand.OpenCommonApp)
+        assertEquals("waze", (waze as ActionCommand.OpenCommonApp).shortcutId)
+        assertEquals(SpaceAddon.NAV, CommonAppShortcuts.byId("waze")?.addon)
+        assertEquals("waze", CommonAppShortcuts.matchSpaceCommit("waze ")?.id)
+        assertEquals("bing", CommonAppShortcuts.matchSpaceCommit("bing ")?.id)
+        assertEquals(SpaceAddon.SEARCH, CommonAppShortcuts.byId("temu")?.addon)
+        assertEquals(SpaceAddon.AI, CommonAppShortcuts.byId("grok")?.addon)
+
         val wa = CommandDetector.detect("wa alice")
         assertTrue(wa is ActionCommand.OpenCommonApp)
         assertEquals("whatsapp", (wa as ActionCommand.OpenCommonApp).shortcutId)
         assertEquals("alice", (wa as ActionCommand.OpenCommonApp).payload)
+
+        val ig = CommandDetector.detect("ig cats")
+        assertTrue(ig is ActionCommand.OpenCommonApp)
+        assertEquals("instagram", (ig as ActionCommand.OpenCommonApp).shortcutId)
+        assertEquals("cats", ig.payload)
+        val truth = CommandDetector.detect("truth cats")
+        assertEquals("truth", (truth as ActionCommand.OpenCommonApp).shortcutId)
+        assertEquals("cats", truth.payload)
     }
 
     @Test

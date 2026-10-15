@@ -41,11 +41,23 @@ class ActionApps(private val context: Context) {
             "com.samsung.android.messaging",
         ), 0xFF3DDC84),
         ActionCandidate("Messenger", listOf("com.facebook.orca"), 0xFF0084FF),
+        ActionCandidate("Viber", listOf("com.viber.voip"), 0xFF7360F2),
+        ActionCandidate("Slack", listOf("com.Slack"), 0xFF4A154B),
+        ActionCandidate("Skype", listOf("com.skype.raider"), 0xFF00AFF0),
+        ActionCandidate("WeChat", listOf("com.tencent.mm"), 0xFF07C160),
+        ActionCandidate("Line", listOf("jp.naver.line.android"), 0xFF06C755),
+        ActionCandidate("KakaoTalk", listOf("com.kakao.talk"), 0xFFFFE812),
+        ActionCandidate("Threema", listOf("ch.threema.app"), 0xFF333333),
+        ActionCandidate("Wire", listOf("com.wire"), 0xFF369DFD),
+        ActionCandidate("Element", listOf("im.vector.app"), 0xFF0DBD8B),
+        ActionCandidate("Session", listOf("network.loki.messenger"), 0xFF00F782),
+        ActionCandidate("TextNow", listOf("com.enflick.android.TextNow"), 0xFF652D90),
     )
 
     val email = listOf(
         ActionCandidate("Gmail", listOf("com.google.android.gm"), 0xFFEA4335),
         ActionCandidate("Outlook", listOf("com.microsoft.office.outlook"), 0xFF0A66C2),
+        ActionCandidate("BlueMail", listOf("me.bluemail.mail"), 0xFF1E6BFF),
     )
 
     val social = socialCatalog
@@ -141,6 +153,7 @@ class ActionApps(private val context: Context) {
                 mergeHintDiscovery(fromCatalog, listOf(Intent(Intent.ACTION_SEND).setType("text/plain"))) { name, pkg ->
                     looksLikeMessaging(name, pkg)
                 }
+                mergeCustomBrowserApps(fromCatalog)
             }
             ActionAppKind.Email -> {
                 mergeHandlers(fromCatalog, mailIntent())
@@ -258,6 +271,18 @@ class ActionApps(private val context: Context) {
                     ),
                 )
             }
+        }
+    }
+
+    private fun mergeCustomBrowserApps(into: MutableList<InstalledActionApp>) {
+        val customs = runCatching {
+            com.madlauncher.data.LocalStore(context).appearanceSettings.customBrowserApps
+        }.getOrDefault(emptyList())
+        for (custom in customs) {
+            if (into.any { it.packageName.equals(custom.packageName, ignoreCase = true) }) continue
+            val resolved = resolvePackage(custom.packageName) ?: continue
+            val label = custom.label.ifBlank { resolved.name }
+            into.add(resolved.copy(name = label))
         }
     }
 

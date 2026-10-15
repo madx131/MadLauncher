@@ -119,7 +119,7 @@ object AppRecipientSync {
     private fun normalizePhone(raw: String): String = raw.trim()
 
     private fun matchesQuery(entry: ContactEntry, q: String): Boolean {
-        if (entry.name.lowercase().contains(q)) return true
+        if (ContactMatch.score(q, entry.name) >= 2_000) return true
         if (entry.phone?.filter { it.isDigit() }?.contains(q.filter { it.isDigit() }) == true) return true
         if (entry.email?.lowercase()?.contains(q) == true) return true
         return false

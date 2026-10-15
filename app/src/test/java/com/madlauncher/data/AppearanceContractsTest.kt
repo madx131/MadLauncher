@@ -75,6 +75,16 @@ class AppearanceContractsTest {
     }
 
     @Test
+    fun socialBrowserAppsAreOffByDefault() {
+        assertEquals(emptySet<String>(), AppearanceSettings().experimentalSocialBrowserApps)
+        assertEquals(emptySet<String>(), AppearanceSettings.fromJson(null).experimentalSocialBrowserApps)
+        assertEquals(
+            setOf("x"),
+            AppearanceSettings(experimentalSocialBrowserApps = setOf("x")).experimentalSocialBrowserApps,
+        )
+    }
+
+    @Test
     fun transparencyAllowsFullyClear() {
         assertEquals(1f, AppearanceSettings().iconBgAlpha, 0.01f)
         assertEquals(false, AppearanceSettings().dockSecondRow)
@@ -102,6 +112,13 @@ class AppearanceContractsTest {
         assertEquals(WebSearchEngine.DUCKDUCKGO, AppearanceSettings.fromJson("").webSearchEngine)
         assertEquals(WebSearchEngine.GOOGLE, AppearanceSettings(webSearchEngine = WebSearchEngine.GOOGLE).webSearchEngine)
         assertEquals(WebSearchEngine.BRAVE, AppearanceSettings(webSearchEngine = WebSearchEngine.BRAVE).webSearchEngine)
+    }
+
+    @Test
+    fun actionBoxHowToStartsUnseen() {
+        assertEquals(false, AppearanceSettings().actionBoxHowToSeen)
+        assertEquals(false, AppearanceSettings.fromJson(null).actionBoxHowToSeen)
+        assertEquals(true, AppearanceSettings(actionBoxHowToSeen = true).actionBoxHowToSeen)
     }
 
     @Test

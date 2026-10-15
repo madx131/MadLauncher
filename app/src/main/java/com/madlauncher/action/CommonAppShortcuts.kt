@@ -1,9 +1,9 @@
 package com.madlauncher.action
 
 /**
- * Bare-word app openers. Enter launches the app. Space opens an in-box addon
- * (calc keypad, in-app search, compose). `!gm cats` always searches the website
- * in the browser.
+ * Bare-word app openers. Enter on the word opens the app. Space searches
+ * (posts, Play, maps places). Enter with text posts / navigates / searches
+ * depending on the app. `!gm cats` always searches the website in the browser.
  */
 enum class SpaceAddon {
     CALC,
@@ -19,6 +19,7 @@ enum class SpaceAddon {
     TRANSLATE,
     AI,
     OPEN,
+    POST,
 }
 
 data class CommonAppShortcut(
@@ -60,6 +61,13 @@ object CommonAppShortcuts {
             packages = listOf("com.google.android.apps.maps"),
             labels = listOf("Maps", "Google Maps"),
             category = CAT_MAPS,
+            addon = SpaceAddon.NAV,
+        ),
+        CommonAppShortcut(
+            id = "waze",
+            label = "Waze",
+            phrases = listOf("waze"),
+            packages = listOf("com.waze"),
             addon = SpaceAddon.NAV,
         ),
         CommonAppShortcut(
@@ -278,7 +286,7 @@ object CommonAppShortcuts {
             label = "Instagram",
             phrases = listOf("ig", "insta", "instagram"),
             packages = listOf("com.instagram.android"),
-            addon = SpaceAddon.SEARCH,
+            addon = SpaceAddon.POST,
         ),
         CommonAppShortcut(
             id = "netflix",
@@ -286,6 +294,41 @@ object CommonAppShortcuts {
             phrases = listOf("netflix", "nflx"),
             packages = listOf("com.netflix.mediaclient"),
             addon = SpaceAddon.SEARCH,
+        ),
+        CommonAppShortcut(
+            id = "bing",
+            label = "Bing",
+            phrases = listOf("bing"),
+            packages = listOf("com.microsoft.bing"),
+            addon = SpaceAddon.SEARCH,
+        ),
+        CommonAppShortcut(
+            id = "temu",
+            label = "Temu",
+            phrases = listOf("temu"),
+            packages = listOf("com.einnovation.temu"),
+            addon = SpaceAddon.SEARCH,
+        ),
+        CommonAppShortcut(
+            id = "iherb",
+            label = "iHerb",
+            phrases = listOf("iherb"),
+            packages = listOf("com.iherb"),
+            addon = SpaceAddon.SEARCH,
+        ),
+        CommonAppShortcut(
+            id = "steam",
+            label = "Steam",
+            phrases = listOf("steam"),
+            packages = listOf("com.valvesoftware.android.steam.community"),
+            addon = SpaceAddon.SEARCH,
+        ),
+        CommonAppShortcut(
+            id = "grok",
+            label = "Grok",
+            phrases = listOf("grok"),
+            packages = listOf("ai.x.grok", "com.xai.grok"),
+            addon = SpaceAddon.AI,
         ),
         CommonAppShortcut(
             id = "discord",
@@ -299,14 +342,14 @@ object CommonAppShortcuts {
             label = "Reddit",
             phrases = listOf("reddit", "rd"),
             packages = listOf("com.reddit.frontpage"),
-            addon = SpaceAddon.SEARCH,
+            addon = SpaceAddon.POST,
         ),
         CommonAppShortcut(
             id = "facebook",
             label = "Facebook",
             phrases = listOf("fb", "facebook"),
             packages = listOf("com.facebook.katana", "com.facebook.lite"),
-            addon = SpaceAddon.SEARCH,
+            addon = SpaceAddon.POST,
         ),
         CommonAppShortcut(
             id = "telegram",
@@ -328,7 +371,7 @@ object CommonAppShortcuts {
                 "com.zhiliaoapp.musically",
                 "com.ss.android.ugc.trill",
             ),
-            addon = SpaceAddon.SEARCH,
+            addon = SpaceAddon.POST,
         ),
         CommonAppShortcut(
             id = "chatgpt",
@@ -350,7 +393,43 @@ object CommonAppShortcuts {
             label = "Snapchat",
             phrases = listOf("snap", "snapchat"),
             packages = listOf("com.snapchat.android"),
-            addon = SpaceAddon.SEARCH,
+            addon = SpaceAddon.POST,
+        ),
+        CommonAppShortcut(
+            id = "x",
+            label = "X",
+            phrases = listOf("x", "twitter"),
+            packages = listOf("com.twitter.android", "com.x.android"),
+            labels = listOf("X", "Twitter"),
+            addon = SpaceAddon.POST,
+        ),
+        CommonAppShortcut(
+            id = "threads",
+            label = "Threads",
+            phrases = listOf("threads"),
+            packages = listOf("com.instagram.barcelona"),
+            addon = SpaceAddon.POST,
+        ),
+        CommonAppShortcut(
+            id = "linkedin",
+            label = "LinkedIn",
+            phrases = listOf("li", "linkedin"),
+            packages = listOf("com.linkedin.android"),
+            addon = SpaceAddon.POST,
+        ),
+        CommonAppShortcut(
+            id = "truth",
+            label = "Truth Social",
+            phrases = listOf("truth"),
+            packages = listOf("com.truthsocial.android.app"),
+            addon = SpaceAddon.POST,
+        ),
+        CommonAppShortcut(
+            id = "bluesky",
+            label = "Bluesky",
+            phrases = listOf("bsky", "bluesky"),
+            packages = listOf("xyz.blueskyweb.app"),
+            addon = SpaceAddon.POST,
         ),
         CommonAppShortcut(
             id = "twitch",

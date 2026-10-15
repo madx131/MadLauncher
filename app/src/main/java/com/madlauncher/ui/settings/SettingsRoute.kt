@@ -13,6 +13,8 @@ enum class SettingsRoute {
     ACTION_BOX_COMMAND_EDIT,
     EXTRAS,
     EXPERIMENTAL,
+    SOCIAL_BROWSER,
+    SOCIAL_BROWSER_ABSENT,
     NOT_WORKING,
     SHARE_APK,
     ABOUT,
@@ -21,12 +23,14 @@ enum class SettingsRoute {
 }
 
 enum class CommandEditId {
+    HOW_TO,
     AT,
     SOCIAL,
     CALL,
     VIDEO,
     SEARCH,
     COMMON_APPS,
+    SEARCHABLE_APPS,
     NOTES,
     TRANSLATE,
     NAV,

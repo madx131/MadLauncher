@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -32,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -57,7 +59,10 @@ import com.madlauncher.data.GlanceDateStyle
 import com.madlauncher.data.GlanceElements
 import com.madlauncher.data.GlanceFont
 import com.madlauncher.data.GlanceSettings
+import com.madlauncher.data.GlanceStatStyle
 import com.madlauncher.data.GlanceType
+import com.madlauncher.data.GlanceUnreadStyle
+import com.madlauncher.data.GlanceWeatherStyle
 import com.madlauncher.data.GlanceWeight
 import com.madlauncher.data.LauncherViewModel
 import com.madlauncher.data.MultiBoard
@@ -196,40 +201,37 @@ fun MadGlanceWidget(
                             )
                         }
                         GlanceElements.WEATHER -> GlanceTapZone(clicksEnabled && !arrange, { vm.openWeatherWidget() }, onLongPress, Modifier.fillMaxSize()) {
-                            Text(
-                                vm.weatherLabel,
+                            GlanceWeather(
+                                style = settings.weatherStyle,
+                                label = vm.weatherLabel,
                                 color = theme.colors.muted,
                                 fontSize = metaSp,
-                                fontFamily = family,
-                                fontWeight = weight,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                                textAlign = TextAlign.Center,
+                                family = family,
+                                weight = weight,
                             )
                         }
-                        GlanceElements.UNREAD -> {
-                            if (vm.unreadApps.isNotEmpty()) {
-                                UnreadIconRow(
-                                    unread = vm.unreadApps,
-                                    clicksEnabled = clicksEnabled && !arrange,
-                                    onClick = { vm.toggleNotifications() },
-                                    iconSize = iconSize,
-                                    type = type,
-                                )
-                            } else if (arrange) {
-                                Text("Apps", color = theme.colors.muted, fontSize = metaSp, fontFamily = family, fontWeight = weight)
-                            }
-                        }
+                        GlanceElements.UNREAD -> GlanceUnread(
+                            style = settings.unreadStyle,
+                            unread = vm.unreadApps,
+                            clicksEnabled = clicksEnabled && !arrange,
+                            arrange = arrange,
+                            onClick = { vm.toggleNotifications() },
+                            iconSize = iconSize,
+                            metaSp = metaSp,
+                            type = type,
+                            family = family,
+                            weight = weight,
+                        )
                         GlanceElements.BATTERY, GlanceElements.CPU, GlanceElements.RAM -> {
-                            Text(
-                                glanceStat(id, vm.deviceLoad),
+                            GlanceStat(
+                                style = settings.statStyle(id),
+                                id = id,
+                                load = vm.deviceLoad,
                                 color = theme.colors.muted,
+                                accent = theme.colors.primary,
                                 fontSize = metaSp,
-                                fontFamily = family,
-                                fontWeight = weight,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                textAlign = TextAlign.Center,
+                                family = family,
+                                weight = weight,
                             )
                         }
                     }
@@ -439,6 +441,236 @@ private fun glanceDate(style: GlanceDateStyle, now: Date): String {
     return SimpleDateFormat(pattern, Locale.getDefault()).format(now)
 }
 
+internal fun splitWeatherLabel(label: String): Pair<String, String?> {
+    val parts = label.split(" · ", limit = 2)
+    return if (parts.size == 2) parts[0] to parts[1] else label to null
+}
+
+internal fun glanceWeatherText(style: GlanceWeatherStyle, label: String): String {
+    val (condition, temp) = splitWeatherLabel(label)
+    return when (style) {
+        GlanceWeatherStyle.TEXT -> label
+        GlanceWeatherStyle.TEMP -> temp ?: label
+        GlanceWeatherStyle.CONDITION -> condition
+        GlanceWeatherStyle.STACKED -> label
+    }
+}
+
+@Composable
+private fun GlanceWeather(
+    style: GlanceWeatherStyle,
+    label: String,
+    color: Color,
+    fontSize: TextUnit,
+    family: FontFamily,
+    weight: FontWeight,
+) {
+    val (condition, temp) = splitWeatherLabel(label)
+    if (style == GlanceWeatherStyle.STACKED && temp != null) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+            Text(
+                temp,
+                color = color,
+                fontSize = fontSize,
+                fontFamily = family,
+                fontWeight = weight,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                condition,
+                color = color.copy(alpha = 0.75f),
+                fontSize = (fontSize.value * 0.72f).sp,
+                fontFamily = family,
+                fontWeight = weight,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+            )
+        }
+        return
+    }
+    Text(
+        glanceWeatherText(style, label),
+        color = color,
+        fontSize = fontSize,
+        fontFamily = family,
+        fontWeight = weight,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
+        textAlign = TextAlign.Center,
+    )
+}
+
+@Composable
+private fun GlanceUnread(
+    style: GlanceUnreadStyle,
+    unread: List<com.madlauncher.data.UnreadApp>,
+    clicksEnabled: Boolean,
+    arrange: Boolean,
+    onClick: () -> Unit,
+    iconSize: Dp,
+    metaSp: TextUnit,
+    type: GlanceType,
+    family: FontFamily,
+    weight: FontWeight,
+) {
+    val muted = LocalMadTheme.current.colors.muted
+    val primary = LocalMadTheme.current.colors.primary
+    if (unread.isEmpty() && !arrange && style != GlanceUnreadStyle.COUNT) return
+    val count = unread.sumOf { it.count.coerceAtLeast(1) }
+    when (style) {
+        GlanceUnreadStyle.ICONS -> {
+            if (unread.isNotEmpty()) {
+                UnreadIconRow(unread, clicksEnabled, onClick, iconSize, type)
+            } else if (arrange) {
+                Text("Apps", color = muted, fontSize = metaSp, fontFamily = family, fontWeight = weight)
+            }
+        }
+        GlanceUnreadStyle.COUNT -> GlanceTapZone(clicksEnabled, onClick, {}, Modifier.fillMaxSize()) {
+            Text(
+                if (count <= 0) "0" else count.toString(),
+                color = muted,
+                fontSize = metaSp,
+                fontFamily = family,
+                fontWeight = weight,
+                textAlign = TextAlign.Center,
+            )
+        }
+        GlanceUnreadStyle.NAMES -> GlanceTapZone(clicksEnabled, onClick, {}, Modifier.fillMaxSize()) {
+            val names = unread.take(3).joinToString { it.appName }.ifBlank { "Apps" }
+            Text(
+                names,
+                color = muted,
+                fontSize = metaSp,
+                fontFamily = family,
+                fontWeight = weight,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+            )
+        }
+        GlanceUnreadStyle.BADGE -> GlanceTapZone(clicksEnabled, onClick, {}, Modifier.fillMaxSize()) {
+            Box(
+                modifier = Modifier
+                    .size(iconSize.coerceAtLeast(22.dp))
+                    .clip(CircleShape)
+                    .background(primary.copy(alpha = 0.18f))
+                    .border(1.dp, primary.copy(alpha = 0.4f), CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    if (count <= 0) "0" else count.toString(),
+                    color = primary,
+                    fontSize = (iconSize.value * 0.38f).sp,
+                    fontFamily = family,
+                    fontWeight = weight,
+                )
+            }
+        }
+    }
+}
+
+internal fun glanceStatValue(id: String, load: DeviceLoad.Snapshot): Int = when (id) {
+    GlanceElements.BATTERY -> load.battery
+    GlanceElements.CPU -> load.cpu
+    else -> load.ram
+}
+
+internal fun glanceStatLabel(id: String): String = when (id) {
+    GlanceElements.BATTERY -> "Battery"
+    GlanceElements.CPU -> "CPU"
+    else -> "RAM"
+}
+
+internal fun glanceStatText(style: GlanceStatStyle, id: String, load: DeviceLoad.Snapshot): String {
+    val value = glanceStatValue(id, load)
+    val label = glanceStatLabel(id)
+    return when (style) {
+        GlanceStatStyle.VALUE -> if (value < 0) label else "$value%"
+        GlanceStatStyle.LABEL, GlanceStatStyle.RING, GlanceStatStyle.BAR ->
+            if (value < 0) label else "$label $value%"
+    }
+}
+
+@Composable
+private fun GlanceStat(
+    style: GlanceStatStyle,
+    id: String,
+    load: DeviceLoad.Snapshot,
+    color: Color,
+    accent: Color,
+    fontSize: TextUnit,
+    family: FontFamily,
+    weight: FontWeight,
+) {
+    val value = glanceStatValue(id, load)
+    val text = glanceStatText(style, id, load)
+    when (style) {
+        GlanceStatStyle.RING -> {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                Canvas(Modifier.fillMaxSize().padding(2.dp)) {
+                    val radius = min(size.width, size.height) / 2f * 0.82f
+                    val center = Offset(size.width / 2f, size.height / 2f)
+                    val stroke = 3.dp.toPx()
+                    val topLeft = Offset(center.x - radius, center.y - radius)
+                    val oval = Size(radius * 2f, radius * 2f)
+                    drawArc(color.copy(alpha = 0.25f), -90f, 360f, false, topLeft = topLeft, size = oval, style = Stroke(stroke, cap = StrokeCap.Round))
+                    if (value >= 0) {
+                        drawArc(accent, -90f, 360f * (value / 100f), false, topLeft = topLeft, size = oval, style = Stroke(stroke, cap = StrokeCap.Round))
+                    }
+                }
+                Text(if (value < 0) glanceStatLabel(id) else "$value%", color = color, fontSize = (fontSize.value * 0.72f).sp, fontFamily = family, fontWeight = weight)
+            }
+        }
+        GlanceStatStyle.BAR -> {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    text,
+                    color = color,
+                    fontSize = fontSize,
+                    fontFamily = family,
+                    fontWeight = weight,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(color.copy(alpha = 0.2f)),
+                ) {
+                    if (value >= 0) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(value / 100f)
+                                .fillMaxSize()
+                                .background(accent, RoundedCornerShape(3.dp)),
+                        )
+                    }
+                }
+            }
+        }
+        GlanceStatStyle.LABEL, GlanceStatStyle.VALUE -> Text(
+            text,
+            color = color,
+            fontSize = fontSize,
+            fontFamily = family,
+            fontWeight = weight,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
 fun glanceElementShort(id: String): String = when (id) {
     GlanceElements.CLOCK -> "Clock"
     GlanceElements.DATE -> "Date"
@@ -448,20 +680,6 @@ fun glanceElementShort(id: String): String = when (id) {
     GlanceElements.CPU -> "CPU"
     GlanceElements.RAM -> "RAM"
     else -> id
-}
-
-private fun glanceStat(id: String, load: DeviceLoad.Snapshot): String {
-    val value = when (id) {
-        GlanceElements.BATTERY -> load.battery
-        GlanceElements.CPU -> load.cpu
-        else -> load.ram
-    }
-    val label = when (id) {
-        GlanceElements.BATTERY -> "Battery"
-        GlanceElements.CPU -> "CPU"
-        else -> "RAM"
-    }
-    return if (value < 0) label else "$label $value%"
 }
 
 @OptIn(ExperimentalFoundationApi::class)

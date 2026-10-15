@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -83,6 +84,7 @@ import com.madlauncher.data.PageEffectId
 import com.madlauncher.data.PaletteId
 import com.madlauncher.data.LauncherViewModel
 import com.madlauncher.platform.FeatureStatus
+import com.madlauncher.ui.MadShapePreview
 import com.madlauncher.ui.madString
 import com.madlauncher.ui.theme.LocalMadTheme
 import com.madlauncher.ui.theme.MadSurfaceKind
@@ -91,12 +93,14 @@ import com.madlauncher.ui.theme.madSurface
 
 @Composable
 private fun commandEditTitle(id: CommandEditId?): String = when (id) {
+    CommandEditId.HOW_TO -> stringResource(R.string.action_box_howto_title)
     CommandEditId.AT -> stringResource(R.string.action_box_kind_message)
     CommandEditId.SOCIAL -> stringResource(R.string.action_box_kind_social)
     CommandEditId.CALL -> stringResource(R.string.action_box_kind_call)
     CommandEditId.VIDEO -> stringResource(R.string.action_box_kind_video)
     CommandEditId.SEARCH -> stringResource(R.string.action_box_kind_search)
     CommandEditId.COMMON_APPS -> stringResource(R.string.action_box_kind_common_apps)
+    CommandEditId.SEARCHABLE_APPS -> stringResource(R.string.action_box_kind_searchable_apps)
     CommandEditId.NOTES -> stringResource(R.string.action_box_kind_notes)
     CommandEditId.TRANSLATE -> stringResource(R.string.action_box_kind_translate)
     CommandEditId.NAV -> stringResource(R.string.action_box_kind_go)
@@ -138,6 +142,8 @@ fun SettingsOverlay(
         SettingsRoute.ACTION_BOX_COMMAND_EDIT -> commandEditTitle(vm.commandEditId)
         SettingsRoute.EXTRAS -> stringResource(R.string.settings_route_extras)
         SettingsRoute.EXPERIMENTAL -> stringResource(R.string.settings_route_experimental)
+        SettingsRoute.SOCIAL_BROWSER -> stringResource(R.string.settings_route_social_browser)
+        SettingsRoute.SOCIAL_BROWSER_ABSENT -> stringResource(R.string.settings_route_social_browser_absent)
         SettingsRoute.NOT_WORKING -> stringResource(R.string.settings_route_not_working)
         SettingsRoute.SHARE_APK -> stringResource(R.string.settings_route_share_apk)
         SettingsRoute.ABOUT -> stringResource(R.string.settings_route_about)
@@ -177,7 +183,6 @@ fun SettingsOverlay(
                 when (route) {
                     SettingsRoute.ACTION_BOX_COMMANDS -> ActionBoxCommandsPage(vm)
                     SettingsRoute.ACTION_BOX_COMMAND_EDIT -> ActionBoxCommandEditPage(vm)
-                    SettingsRoute.ICONS -> IconsPage(vm)
                     SettingsRoute.GLANCE -> GlanceSettingsPage(vm)
                     else -> {
                     Column(
@@ -190,7 +195,7 @@ fun SettingsOverlay(
                         when (route) {
                             SettingsRoute.HUB -> SettingsHub(vm)
                             SettingsRoute.THEMES -> ThemesPage(vm)
-                            SettingsRoute.ICONS, SettingsRoute.GLANCE -> Unit
+                            SettingsRoute.ICONS -> IconsPage(vm)
                             SettingsRoute.GESTURES -> GesturesPage(vm)
                             SettingsRoute.FONTS -> FontsPage(vm, onPickFont)
                             SettingsRoute.NAV_SHORTCUTS -> NavShortcutsPage(vm)
@@ -198,12 +203,15 @@ fun SettingsOverlay(
                             SettingsRoute.EDIT_DOCKS -> EditDocksPage(vm)
                             SettingsRoute.EXTRAS -> ExtrasPage(vm)
                             SettingsRoute.EXPERIMENTAL -> ExperimentalPage(vm)
+                            SettingsRoute.SOCIAL_BROWSER -> SocialBrowserPage(vm)
+                            SettingsRoute.SOCIAL_BROWSER_ABSENT -> SocialBrowserAbsentPage(vm)
                             SettingsRoute.NOT_WORKING -> NotWorkingPage(vm)
                             SettingsRoute.SHARE_APK -> ShareApkPage(vm)
                             SettingsRoute.ABOUT -> AboutPage()
                             SettingsRoute.MULTI -> MultiWidgetSettingsPage(vm)
                             SettingsRoute.ACTION_BOX_COMMANDS,
-                            SettingsRoute.ACTION_BOX_COMMAND_EDIT -> Unit
+                            SettingsRoute.ACTION_BOX_COMMAND_EDIT,
+                            SettingsRoute.GLANCE -> Unit
                         }
                     }
                     }
@@ -389,124 +397,118 @@ private fun ThemesPage(vm: LauncherViewModel) {
     }
 }
 
+private fun IconShapeId.pickerLabel(): String = when (this) {
+    IconShapeId.CRESCENT -> "crescent moon"
+    else -> name.lowercase().replace('_', ' ')
+}
+
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun IconsPage(vm: LauncherViewModel) {
     val s = vm.appearanceDraft
-    val c = LocalMadTheme.current.colors
     LaunchedEffect(Unit) { vm.refreshIconPacks() }
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Text(stringResource(R.string.settings_icons_preview), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-        IconsShapePreview(vm)
-        Text(stringResource(R.string.settings_icons_preview_hint), color = c.muted, fontSize = 12.sp)
-        Column(
-            modifier = Modifier
-                .weight(1f, fill = true)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(stringResource(R.string.settings_section_shape), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-            SettingsStyleRow(
-                options = listOf(
-                    IconShapeId.ADAPTIVE to R.string.settings_icon_shape_adaptive,
-                    IconShapeId.ROUNDED_SQUARE to R.string.settings_icon_shape_rounded,
-                    IconShapeId.SQUARE to R.string.settings_icon_shape_square,
-                    IconShapeId.SQUIRCLE to R.string.settings_icon_shape_squircle,
-                    IconShapeId.CIRCLE to R.string.settings_icon_shape_circle,
-                    IconShapeId.TEARDROP to R.string.settings_icon_shape_teardrop,
-                ),
-                selected = s.iconShape,
-                onPick = { shape -> vm.setIconShape(shape) },
-            )
-            Text(stringResource(R.string.settings_icon_size), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-            Slider(
-                value = s.homeIconSizeDp,
-                onValueChange = { v -> vm.patchAppearanceDraft { it.copy(homeIconSizeDp = v) } },
-                valueRange = 40f..88f,
-            )
-            Text(stringResource(R.string.settings_icon_size_hint), color = c.muted, fontSize = 11.sp)
-            Text(stringResource(R.string.settings_section_icon_bg), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-            AlphaSlider(stringResource(R.string.settings_alpha_icon_bg), s.iconBgAlpha) { v ->
-                vm.patchAppearanceDraft { it.copy(iconBgAlpha = v) }
+    SectionLabel(stringResource(R.string.settings_section_shape))
+    val previewDp = s.homeIconSizeDp.coerceIn(40f, 88f)
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        IconShapeId.entries.forEach { shape ->
+            val selected = s.iconShape == shape
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .width((previewDp + 16f).coerceAtLeast(76f).dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (selected) LocalMadTheme.current.colors.primary.copy(alpha = 0.25f) else LocalMadTheme.current.colors.secondary)
+                    .clickable { vm.setIconShape(shape) }
+                    .padding(8.dp),
+            ) {
+                MadShapePreview(shape, previewDp.dp, s.iconBgAlpha)
+                Text(
+                    shape.pickerLabel(),
+                    color = LocalMadTheme.current.colors.fg,
+                    fontSize = 9.sp,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                )
             }
-            Text(stringResource(R.string.settings_icon_bg_hint), color = c.muted, fontSize = 11.sp)
-            Text(stringResource(R.string.settings_folders), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-            SettingsStyleRow(
-                options = listOf(
-                    FolderViewId.GRID to R.string.settings_folder_grid,
-                    FolderViewId.STACK to R.string.settings_folder_stack,
-                    FolderViewId.BADGE to R.string.settings_folder_badge,
-                ),
-                selected = s.folderView,
-                onPick = { view -> vm.patchAppearanceDraft { it.copy(folderView = view) } },
-            )
-            Text(stringResource(R.string.settings_section_badges), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-            SettingsStyleRow(
-                options = listOf(
-                    IconBadgeStyle.DOT to R.string.settings_badge_dot,
-                    IconBadgeStyle.NUMBER to R.string.settings_badge_number,
-                ),
-                selected = s.iconBadgeStyle,
-                onPick = { style -> vm.patchAppearanceDraft { it.copy(iconBadgeStyle = style) } },
-            )
-            Text(stringResource(R.string.settings_section_icon_pack), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-            HubRow(
-                stringResource(R.string.settings_icon_default),
-                if (s.iconPackPackage.isBlank()) {
-                    stringResource(R.string.settings_icon_default_on)
-                } else {
-                    stringResource(R.string.settings_icon_default_reset)
+        }
+    }
+    SectionLabel(stringResource(R.string.settings_icon_size))
+    Slider(
+        value = s.homeIconSizeDp,
+        onValueChange = { v -> vm.patchAppearanceDraft { it.copy(homeIconSizeDp = v) } },
+        valueRange = 40f..88f,
+    )
+    Text(
+        stringResource(R.string.settings_icon_size_hint),
+        color = LocalMadTheme.current.colors.muted,
+        fontSize = 11.sp,
+        modifier = Modifier.padding(bottom = 8.dp),
+    )
+    SectionLabel(stringResource(R.string.settings_icon_label_size))
+    Slider(
+        value = s.iconLabelSizeSp.coerceIn(9f, 16f),
+        onValueChange = { v -> vm.patchAppearanceDraft { it.copy(iconLabelSizeSp = v) } },
+        valueRange = 9f..16f,
+    )
+    Text(
+        stringResource(R.string.settings_icon_label_hint),
+        color = LocalMadTheme.current.colors.muted,
+        fontSize = 11.sp,
+        modifier = Modifier.padding(bottom = 8.dp),
+    )
+    SectionLabel(stringResource(R.string.settings_section_icon_bg))
+    AlphaSlider(stringResource(R.string.settings_alpha_icon_bg), s.iconBgAlpha) { v ->
+        vm.patchAppearanceDraft { it.copy(iconBgAlpha = v) }
+    }
+    Text(
+        stringResource(R.string.settings_icon_bg_hint),
+        color = LocalMadTheme.current.colors.muted,
+        fontSize = 11.sp,
+        modifier = Modifier.padding(bottom = 8.dp),
+    )
+    SectionLabel(stringResource(R.string.settings_folders))
+    SegmentedRow(listOf(
+        stringResource(R.string.settings_folder_grid),
+        stringResource(R.string.settings_folder_stack),
+        stringResource(R.string.settings_folder_badge),
+    ), when (s.folderView) {
+        FolderViewId.GRID -> 0
+        FolderViewId.STACK -> 1
+        FolderViewId.BADGE -> 2
+    }) { idx ->
+        vm.patchAppearanceDraft {
+            it.copy(
+                folderView = when (idx) {
+                    1 -> FolderViewId.STACK
+                    2 -> FolderViewId.BADGE
+                    else -> FolderViewId.GRID
                 },
-            ) { vm.setIconPack("") }
-            vm.iconPacks.forEach { pack ->
-                HubRow(pack.label, pack.packageName) { vm.setIconPack(pack.packageName) }
-            }
+            )
         }
     }
-}
-
-@Composable
-private fun IconsShapePreview(vm: LauncherViewModel) {
-    val c = LocalMadTheme.current.colors
-    val size = vm.appearanceDraft.homeIconSizeDp.dp.coerceIn(40.dp, 72.dp)
-    val samples = remember(vm.apps) {
-        vm.apps.filter { it.icon != null }.take(4)
-    }
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(96.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(c.secondary.copy(alpha = 0.55f))
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-    ) {
-        if (samples.isEmpty()) {
-            // Placeholder shapes when apps are still loading.
-            IconShapeId.entries.take(4).forEach { shape ->
-                Box(
-                    modifier = Modifier
-                        .size(size)
-                        .clip(MadTheme.iconClip(shape, MadTheme.cornerDpFor(shape)))
-                        .background(c.primary.copy(alpha = 0.85f)),
-                )
-            }
-        } else {
-            samples.forEach { app ->
-                com.madlauncher.ui.AppIcon(
-                    drawable = app.icon,
-                    contentDescription = app.label,
-                    size = size,
-                    packageName = app.packageName,
-                    activityName = app.activityName,
-                )
-            }
+    SectionLabel(stringResource(R.string.settings_section_badges))
+    SegmentedRow(
+        listOf(
+            stringResource(R.string.settings_badge_dot),
+            stringResource(R.string.settings_badge_number),
+        ),
+        when (s.iconBadgeStyle) {
+            IconBadgeStyle.DOT -> 0
+            IconBadgeStyle.NUMBER -> 1
+        },
+    ) { idx ->
+        vm.patchAppearanceDraft {
+            it.copy(
+                iconBadgeStyle = if (idx == 0) IconBadgeStyle.DOT else IconBadgeStyle.NUMBER,
+            )
         }
+    }
+    SectionLabel(stringResource(R.string.settings_section_icon_pack))
+    HubRow(stringResource(R.string.settings_icon_default), if (s.iconPackPackage.isBlank()) stringResource(R.string.settings_icon_default_on) else stringResource(R.string.settings_icon_default_reset)) {
+        vm.setIconPack("")
+    }
+    vm.iconPacks.forEach { pack ->
+        HubRow(pack.label, pack.packageName) { vm.setIconPack(pack.packageName) }
     }
 }
 
@@ -749,6 +751,16 @@ private fun ExperimentalPage(vm: LauncherViewModel) {
             vm.openSettingsRoute(SettingsRoute.NAV_SHORTCUTS)
         }
     }
+    HubRow(
+        stringResource(R.string.settings_experimental_social_browser),
+        stringResource(
+            R.string.settings_experimental_social_browser_sub,
+            vm.socialBrowserEnabledCount(),
+            vm.socialBrowserTotalCount(),
+        ),
+    ) {
+        vm.openSettingsRoute(SettingsRoute.SOCIAL_BROWSER)
+    }
     if (pending != null) {
         ExperimentalGrantDialog(
             missing = missing,
@@ -772,6 +784,403 @@ private fun ExperimentalPage(vm: LauncherViewModel) {
             },
             onCancel = { pending = null },
         )
+    }
+}
+
+@Composable
+private fun SocialBrowserPage(vm: LauncherViewModel) {
+    val theme = LocalMadTheme.current
+    var adding by remember { mutableStateOf(false) }
+    var absentWindow by remember { mutableStateOf(false) }
+    var urlFor by remember { mutableStateOf<com.madlauncher.data.LaunchableApp?>(null) }
+    Text(
+        stringResource(R.string.settings_social_browser_intro),
+        color = theme.colors.muted,
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+    )
+    val installedSocial = com.madlauncher.action.SocialBrowserApps.socialApps.filter { vm.browserAppInstalled(it.id) }
+    val installedMessaging = com.madlauncher.action.SocialBrowserApps.messagingApps.filter { vm.browserAppInstalled(it.id) }
+    if (installedSocial.isNotEmpty()) {
+        BrowserSection(stringResource(R.string.settings_social_browser_social))
+        installedSocial.forEach { app ->
+            BrowserModeRow(app.label, com.madlauncher.action.SocialBrowserApps.options(app), vm.socialBrowserMode(app.id)) {
+                vm.setSocialBrowserMode(app.id, it)
+            }
+        }
+    }
+    val installedSupported = com.madlauncher.action.SocialBrowserApps.supportedApps.filter { vm.browserAppInstalled(it.id) }
+    if (installedSupported.isNotEmpty()) {
+        BrowserSection(stringResource(R.string.settings_social_browser_supported))
+        installedSupported.forEach { app ->
+            BrowserModeRow(app.label, com.madlauncher.action.SocialBrowserApps.options(app), vm.socialBrowserMode(app.id)) {
+                vm.setSocialBrowserMode(app.id, it)
+            }
+        }
+    }
+    if (installedMessaging.isNotEmpty()) {
+        BrowserSection(stringResource(R.string.settings_social_browser_messaging))
+        installedMessaging.forEach { app ->
+            BrowserModeRow(app.label, com.madlauncher.action.SocialBrowserApps.options(app), vm.socialBrowserMode(app.id)) {
+                vm.setSocialBrowserMode(app.id, it)
+            }
+        }
+    }
+    val added = vm.customBrowserApps().filter { vm.customBrowserInstalled(it.packageName) }
+    if (added.isNotEmpty()) {
+        BrowserSection(stringResource(R.string.settings_social_browser_added))
+        added.forEach { app ->
+            BrowserModeRow(app.label, com.madlauncher.action.SocialBrowserApps.customOptions(), app.mode) {
+                vm.setCustomBrowserMode(app.packageName, it)
+            }
+            Text(
+                stringResource(R.string.settings_social_browser_remove),
+                color = theme.colors.muted,
+                fontSize = 12.sp,
+                modifier = Modifier
+                    .clickable { vm.removeCustomBrowserApp(app.packageName) }
+                    .padding(bottom = 8.dp),
+            )
+        }
+    }
+    if (vm.absentBrowserCount() > 0) {
+        HubRow(
+            stringResource(R.string.settings_social_browser_absent),
+            stringResource(R.string.settings_social_browser_absent_sub, vm.absentBrowserCount()),
+        ) {
+            absentWindow = true
+        }
+    }
+    if (absentWindow) {
+        BrowserAbsentWindow(onClose = { absentWindow = false }) {
+            SocialBrowserAbsentPage(vm)
+        }
+    }
+    HubRow(
+        stringResource(R.string.settings_social_browser_add),
+        stringResource(R.string.settings_social_browser_add_sub),
+    ) {
+        adding = true
+    }
+    if (adding) {
+        AddBrowserAppDialog(
+            apps = vm.apps,
+            taken = vm.customBrowserApps().map { it.packageName }.toSet(),
+            onPick = { app ->
+                adding = false
+                urlFor = app
+            },
+            onCancel = { adding = false },
+        )
+    }
+    val pendingUrl = urlFor
+    if (pendingUrl != null) {
+        BrowserUrlDialog(
+            appName = pendingUrl.label,
+            onSave = { url ->
+                vm.addCustomBrowserApp(pendingUrl.packageName, pendingUrl.label, url)
+                urlFor = null
+            },
+            onCancel = { urlFor = null },
+        )
+    }
+}
+
+@Composable
+private fun BrowserAbsentWindow(onClose: () -> Unit, content: @Composable () -> Unit) {
+    val theme = LocalMadTheme.current
+    androidx.compose.ui.window.Dialog(onDismissRequest = onClose) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.88f)
+                .clip(RoundedCornerShape(20.dp))
+                .background(theme.colors.card),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(start = 8.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .clickable(onClick = onClose)
+                        .padding(8.dp),
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Outlined.ArrowBack,
+                        contentDescription = stringResource(R.string.settings_back),
+                        tint = theme.colors.fg,
+                    )
+                }
+                Text(
+                    stringResource(R.string.settings_route_social_browser_absent),
+                    color = theme.colors.fg,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 18.sp,
+                )
+            }
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                content()
+            }
+        }
+    }
+}
+
+@Composable
+private fun SocialBrowserAbsentPage(vm: LauncherViewModel) {
+    val theme = LocalMadTheme.current
+    Text(
+        stringResource(R.string.settings_social_browser_absent_intro),
+        color = theme.colors.muted,
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+    )
+    val social = com.madlauncher.action.SocialBrowserApps.socialApps.filter { !vm.browserAppInstalled(it.id) }
+    val messaging = com.madlauncher.action.SocialBrowserApps.messagingApps.filter { !vm.browserAppInstalled(it.id) }
+    if (social.isNotEmpty()) {
+        BrowserSection(stringResource(R.string.settings_social_browser_social))
+        social.forEach { app ->
+            BrowserModeRow(app.label, com.madlauncher.action.SocialBrowserApps.options(app), vm.absentBrowserMode(app.id)) {
+                vm.setSocialBrowserMode(app.id, it)
+            }
+        }
+    }
+    val supported = com.madlauncher.action.SocialBrowserApps.supportedApps.filter { !vm.browserAppInstalled(it.id) }
+    if (supported.isNotEmpty()) {
+        BrowserSection(stringResource(R.string.settings_social_browser_supported))
+        supported.forEach { app ->
+            BrowserModeRow(app.label, com.madlauncher.action.SocialBrowserApps.options(app), vm.absentBrowserMode(app.id)) {
+                vm.setSocialBrowserMode(app.id, it)
+            }
+        }
+    }
+    if (messaging.isNotEmpty()) {
+        BrowserSection(stringResource(R.string.settings_social_browser_messaging))
+        messaging.forEach { app ->
+            BrowserModeRow(app.label, com.madlauncher.action.SocialBrowserApps.options(app), vm.absentBrowserMode(app.id)) {
+                vm.setSocialBrowserMode(app.id, it)
+            }
+        }
+    }
+    val added = vm.customBrowserApps().filter { !vm.customBrowserInstalled(it.packageName) }
+    if (added.isNotEmpty()) {
+        BrowserSection(stringResource(R.string.settings_social_browser_added))
+        added.forEach { app ->
+            BrowserModeRow(app.label, com.madlauncher.action.SocialBrowserApps.customOptions(), app.mode) {
+                vm.setCustomBrowserMode(app.packageName, it)
+            }
+            Text(
+                stringResource(R.string.settings_social_browser_remove),
+                color = theme.colors.muted,
+                fontSize = 12.sp,
+                modifier = Modifier
+                    .clickable { vm.removeCustomBrowserApp(app.packageName) }
+                    .padding(bottom = 8.dp),
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun BrowserModeRow(
+    label: String,
+    modes: List<com.madlauncher.action.SocialBrowserApps.BrowserMode>,
+    selected: com.madlauncher.action.SocialBrowserApps.BrowserMode,
+    onPick: (com.madlauncher.action.SocialBrowserApps.BrowserMode) -> Unit,
+) {
+    val theme = LocalMadTheme.current
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+        Text(label, color = theme.colors.fg, fontSize = 15.sp)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            modes.forEach { mode ->
+                val on = mode == selected
+                Text(
+                    browserModeLabel(mode),
+                    color = if (on) theme.colors.bg else theme.colors.fg,
+                    fontSize = 12.sp,
+                    modifier = Modifier
+                        .padding(top = 6.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (on) theme.colors.primary else theme.colors.bg)
+                        .clickable { onPick(mode) }
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun browserModeLabel(mode: com.madlauncher.action.SocialBrowserApps.BrowserMode): String =
+    when (mode) {
+        com.madlauncher.action.SocialBrowserApps.BrowserMode.OFF ->
+            stringResource(R.string.settings_social_browser_mode_off)
+        com.madlauncher.action.SocialBrowserApps.BrowserMode.ON ->
+            stringResource(R.string.settings_social_browser_mode_on)
+        com.madlauncher.action.SocialBrowserApps.BrowserMode.POST ->
+            stringResource(R.string.settings_social_browser_mode_post)
+        com.madlauncher.action.SocialBrowserApps.BrowserMode.MSG ->
+            stringResource(R.string.settings_social_browser_mode_msg)
+    }
+
+@Composable
+private fun BrowserSection(title: String) {
+    Text(
+        title,
+        color = LocalMadTheme.current.colors.fg,
+        fontWeight = FontWeight.Medium,
+        fontSize = 13.sp,
+        modifier = Modifier.padding(top = 12.dp, bottom = 4.dp),
+    )
+}
+
+@Composable
+private fun AddBrowserAppDialog(
+    apps: List<com.madlauncher.data.LaunchableApp>,
+    taken: Set<String>,
+    onPick: (com.madlauncher.data.LaunchableApp) -> Unit,
+    onCancel: () -> Unit,
+) {
+    val theme = LocalMadTheme.current
+    var query by remember { mutableStateOf("") }
+    val choices = apps
+        .filter { app ->
+            com.madlauncher.action.SocialBrowserApps.idFor(app.packageName) == null &&
+                taken.none { it.equals(app.packageName, ignoreCase = true) }
+        }
+        .distinctBy { it.packageName }
+        .filter { app ->
+            query.isBlank() ||
+                app.label.contains(query, ignoreCase = true) ||
+                app.packageName.contains(query, ignoreCase = true)
+        }
+        .take(40)
+    androidx.compose.ui.window.Dialog(onDismissRequest = onCancel) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 480.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(theme.colors.card)
+                .padding(16.dp),
+        ) {
+            Text(
+                stringResource(R.string.settings_social_browser_add),
+                color = theme.colors.fg,
+                fontWeight = FontWeight.Medium,
+                fontSize = 16.sp,
+            )
+            BasicTextField(
+                value = query,
+                onValueChange = { query = it },
+                singleLine = true,
+                textStyle = androidx.compose.ui.text.TextStyle(color = theme.colors.fg, fontSize = 14.sp),
+                cursorBrush = SolidColor(theme.colors.fg),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 10.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(theme.colors.bg)
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                decorationBox = { inner ->
+                    if (query.isEmpty()) {
+                        Text(
+                            stringResource(R.string.settings_social_browser_search),
+                            color = theme.colors.muted,
+                            fontSize = 14.sp,
+                        )
+                    }
+                    inner()
+                },
+            )
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                choices.forEach { app ->
+                    Text(
+                        app.label,
+                        color = theme.colors.fg,
+                        fontSize = 15.sp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onPick(app) }
+                            .padding(vertical = 10.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BrowserUrlDialog(
+    appName: String,
+    onSave: (String) -> Unit,
+    onCancel: () -> Unit,
+) {
+    val theme = LocalMadTheme.current
+    var url by remember { mutableStateOf("https://") }
+    val ok = url.startsWith("https://") || url.startsWith("http://")
+    androidx.compose.ui.window.Dialog(onDismissRequest = onCancel) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(theme.colors.card)
+                .padding(16.dp),
+        ) {
+            Text(
+                appName,
+                color = theme.colors.fg,
+                fontWeight = FontWeight.Medium,
+                fontSize = 16.sp,
+            )
+            Text(
+                stringResource(R.string.settings_social_browser_add_url),
+                color = theme.colors.muted,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(top = 6.dp, bottom = 10.dp),
+            )
+            BasicTextField(
+                value = url,
+                onValueChange = { url = it },
+                singleLine = true,
+                textStyle = androidx.compose.ui.text.TextStyle(color = theme.colors.fg, fontSize = 14.sp),
+                cursorBrush = SolidColor(theme.colors.fg),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(theme.colors.bg)
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                Text(
+                    stringResource(android.R.string.cancel),
+                    color = theme.colors.muted,
+                    modifier = Modifier
+                        .clickable(onClick = onCancel)
+                        .padding(12.dp),
+                )
+                Text(
+                    stringResource(R.string.settings_social_browser_add_save),
+                    color = if (ok && url.length > 8) theme.colors.fg else theme.colors.muted,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier
+                        .clickable(enabled = ok && url.length > 8) { onSave(url.trim()) }
+                        .padding(12.dp),
+                )
+            }
+        }
     }
 }
 
@@ -1121,14 +1530,18 @@ private fun ExtrasPage(vm: LauncherViewModel) {
 
     val labelMap = vm.remoteLanguageCatalog.associate { it.fileName to it.label } + vm.installedLanguageLabels
     val bundled = LanguageCatalog.bundledEntries(context, labelMap)
+    val bundledFiles = bundled.map { it.fileName }.toSet()
     val dropdownPacks = (installed + bundled)
         .distinctBy { it.fileName }
         .sortedBy { it.label.lowercase() }
 
+    fun packLabel(fileName: String, label: String): String =
+        if (fileName in bundledFiles) context.getString(R.string.extras_language_bundled, label) else label
+
     val selectedLabel = when {
         selectedFile.isBlank() -> stringResource(R.string.extras_language_english)
-        else -> dropdownPacks.find { it.fileName == selectedFile }?.label
-            ?: LanguageCatalog.labelFromFileName(selectedFile)
+        else -> dropdownPacks.find { it.fileName == selectedFile }?.let { packLabel(it.fileName, it.label) }
+            ?: packLabel(selectedFile, LanguageCatalog.labelFromFileName(selectedFile))
     }
 
     SectionLabel(stringResource(R.string.extras_language_section))
@@ -1165,7 +1578,7 @@ private fun ExtrasPage(vm: LauncherViewModel) {
             dropdownPacks.forEach { entry ->
                 androidx.compose.runtime.key(entry.fileName) {
                     DropdownMenuItem(
-                        text = { Text(entry.label, color = c.fg) },
+                        text = { Text(packLabel(entry.fileName, entry.label), color = c.fg) },
                         onClick = {
                             vm.setLanguageOverlay(entry.fileName)
                             dropdownOpen = false

@@ -44,6 +44,13 @@ import com.madlauncher.action.CallResult
 import com.madlauncher.action.PostResult
 import com.madlauncher.action.ActionCommand
 import com.madlauncher.action.AbsShortcutSuggest
+import com.madlauncher.action.AppAddonGuess
+import com.madlauncher.action.AppSpaceCapability
+import com.madlauncher.action.SpaceCapableApp
+import com.madlauncher.action.InboxOpenResult
+import com.madlauncher.action.ReusedBrowser
+import com.madlauncher.action.SocialBrowserApps
+import com.madlauncher.action.SocialInbox
 import com.madlauncher.action.CommandAliases
 import com.madlauncher.action.UserShortcut
 import com.madlauncher.action.UserShortcutCombo
@@ -71,6 +78,7 @@ import com.madlauncher.action.ResolvedSearchApp
 import com.madlauncher.action.SearchInAppResult
 import com.madlauncher.action.SearchableAppDef
 import com.madlauncher.action.SearchableApps
+import com.madlauncher.action.NavIntents
 import com.madlauncher.action.WeatherLaunchGuard
 import com.madlauncher.action.SendMessageResult
 import com.madlauncher.notif.LiveNotif
@@ -261,6 +269,57 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     val useWidgetBadges: Boolean
         get() = appearanceSettings.experimentalWidgetBadges
 
+    fun socialBrowserMode(id: String): SocialBrowserApps.BrowserMode = SocialBrowserApps.mode(
+        id,
+        appearanceSettings.experimentalSocialBrowserMode,
+        appearanceSettings.experimentalSocialBrowserApps,
+        appearanceSettings.experimentalSocialBrowserOff,
+    )
+
+    fun customBrowserApps(): List<SocialBrowserApps.Custom> = appearanceSettings.customBrowserApps
+
+    fun browserAppInstalled(id: String): Boolean =
+        apps.any { SocialBrowserApps.idFor(it.packageName) == id }
+
+    fun customBrowserInstalled(packageName: String): Boolean =
+        apps.any { it.packageName.equals(packageName, ignoreCase = true) }
+
+    /** Not installed yet: off until the user picks a choice. That choice is kept after install. */
+    fun absentBrowserMode(id: String): SocialBrowserApps.BrowserMode =
+        appearanceSettings.experimentalSocialBrowserMode[id] ?: SocialBrowserApps.BrowserMode.OFF
+
+    fun socialBrowserEnabledCount(): Int =
+        SocialBrowserApps.all.count {
+            browserAppInstalled(it.id) && socialBrowserMode(it.id) != SocialBrowserApps.BrowserMode.OFF
+        } + appearanceSettings.customBrowserApps.count { customBrowserInstalled(it.packageName) && it.enabled }
+
+    fun socialBrowserTotalCount(): Int =
+        SocialBrowserApps.all.count { browserAppInstalled(it.id) } +
+            appearanceSettings.customBrowserApps.count { customBrowserInstalled(it.packageName) }
+
+    fun absentBrowserCount(): Int =
+        SocialBrowserApps.all.count { !browserAppInstalled(it.id) } +
+            appearanceSettings.customBrowserApps.count { !customBrowserInstalled(it.packageName) }
+
+    private fun allowsBrowser(packageName: String, command: SocialBrowserApps.BrowserCommand): Boolean =
+        SocialBrowserApps.allowsCommand(
+            packageName,
+            command,
+            appearanceSettings.experimentalSocialBrowserMode,
+            appearanceSettings.experimentalSocialBrowserApps,
+            appearanceSettings.experimentalSocialBrowserOff,
+            appearanceSettings.customBrowserApps,
+        )
+
+    private fun browserMode(packageName: String): SocialBrowserApps.BrowserMode {
+        val id = SocialBrowserApps.idFor(packageName)
+        if (id != null) return socialBrowserMode(id)
+        return appearanceSettings.customBrowserApps
+            .firstOrNull { it.packageName.equals(packageName, ignoreCase = true) }
+            ?.mode
+            ?: SocialBrowserApps.BrowserMode.OFF
+    }
+
     var toast by mutableStateOf<String?>(null)
         private set
     private var toastJob: Job? = null
@@ -312,6 +371,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     /** Space addon for a common-app shortcut (clock reminder, calendar event, camera ready). */
     var spaceAddon by mutableStateOf<SpaceAddon?>(null)
         private set
+    /** Four-card How it works shown in the Action Box. */
+    var actionBoxHowToOpen by mutableStateOf(false)
+        private set
     var spaceShortcutId by mutableStateOf<String?>(null)
         private set
     var stickyCompose by mutableStateOf(false)
@@ -360,6 +422,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     var preferredSocial by mutableStateOf(store.preferredSocial)
     var preferredNav by mutableStateOf(store.preferredNav)
     var actionBoxCommandsRev by mutableStateOf(0)
+    var searchableSubmitRev by mutableStateOf(0)
+        private set
+    var searchableSubmittingPkg by mutableStateOf<String?>(null)
+        private set
     var independentActionBox by mutableStateOf(false)
         private set
     var settingsFromActionBox by mutableStateOf(false)
@@ -1128,7 +1194,28 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         refreshPlatformProfile()
     }
 
-    fun featureStatus(feature: PlatformFeature): FeatureStatus = platformProfile.status(feature)
+    fun featureStatus(feature: PlatformFeature): FeatureStatus = when (feature) {
+        PlatformFeature.ACTIONBOX_SOCIAL_DM ->
+            socialBrowserStatus(SocialBrowserApps.BrowserCommand.MSG)
+        PlatformFeature.ACTIONBOX_TRUTH_POST ->
+            socialBrowserStatus(SocialBrowserApps.BrowserCommand.POST)
+        PlatformFeature.ACTIONBOX_META_SOCIAL -> {
+            val probed = platformProfile.status(feature)
+            if (probed == FeatureStatus.NOT_INSTALLED) probed
+            else socialBrowserStatus(SocialBrowserApps.BrowserCommand.POST)
+        }
+        else -> platformProfile.status(feature)
+    }
+
+    private fun socialBrowserStatus(command: SocialBrowserApps.BrowserCommand): FeatureStatus =
+        if (SocialBrowserApps.socialApps.any { app ->
+                SocialBrowserApps.allowsApp(app, socialBrowserMode(app.id), command)
+            }
+        ) {
+            FeatureStatus.DEGRADED
+        } else {
+            FeatureStatus.UNAVAILABLE
+        }
 
     fun isFeatureEnabled(feature: PlatformFeature): Boolean = platformProfile.isEnabled(feature)
 
@@ -1631,6 +1718,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun runUserShortcut(packageName: String, payload: String) {
+        if (payload.isNotBlank()) {
+            beginAddonForPackage(packageName, payload)
+            return
+        }
+        val launchable = apps.firstOrNull { it.packageName == packageName }
         val q = payload.trim()
         if (q.isNotEmpty()) {
             val searchable = searchableApps.firstOrNull { it.app.packageName == packageName }
@@ -2079,6 +2171,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             actionQuery = ""
             clearCompose()
         }
+        if (!appearanceSettings.actionBoxHowToSeen && !commandPickerOpen) {
+            actionBoxHowToOpen = true
+        }
     }
 
     fun applyHelpCommand(symbol: String) {
@@ -2089,6 +2184,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             "/abs", "abs" -> openActionBoxSettings()
             "/h", "help" -> {
                 commandPickerOpen = true
+                actionQuery = ""
+            }
+            "howto" -> {
+                actionBoxHowToOpen = true
+                commandPickerOpen = false
                 actionQuery = ""
             }
             "+" -> onQueryChange("+ ")
@@ -2124,6 +2224,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         boxedConversions = emptyList()
         clearCompose()
         helpOpen = false
+        actionBoxHowToOpen = false
         commandPickerOpen = false
         if (settingsFromActionBox) {
             settingsRoute = null
@@ -3214,10 +3315,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 LanguageOverlay.installBundledPack(getApplication(), fileName)
             }
         }
+        store.languageUserPicked = true
         applyAppearance(appearanceSettings.copy(languageOverlay = fileName), persist = true)
         appearanceEpoch++
         installedLanguageRevision++
         refreshInstalledLanguagePacks()
+        (getApplication() as? com.madlauncher.MadApp)?.foregroundActivity?.recreate()
     }
 
     fun openEditDocksFromControl() {
@@ -3335,6 +3438,17 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         NavShortcutBridge.requestRebuild()
     }
 
+    fun showActionBoxHowTo() {
+        openCommandEdit(CommandEditId.HOW_TO)
+    }
+
+    fun dismissActionBoxHowTo() {
+        actionBoxHowToOpen = false
+        if (!appearanceSettings.actionBoxHowToSeen) {
+            applyAppearance(appearanceSettings.copy(actionBoxHowToSeen = true))
+        }
+    }
+
     fun setExperimentalHelpWindow(enabled: Boolean) {
         val next = appearanceSettings.copy(experimentalHelpWindow = enabled)
         applyAppearance(next)
@@ -3346,6 +3460,44 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun setExperimentalWidgetBadges(enabled: Boolean) {
         applyAppearance(appearanceSettings.copy(experimentalWidgetBadges = enabled))
+    }
+
+    fun setSocialBrowserMode(id: String, mode: SocialBrowserApps.BrowserMode) {
+        if (id !in SocialBrowserApps.ids) return
+        val explicit = appearanceSettings.experimentalSocialBrowserMode.toMutableMap()
+        explicit[id] = mode
+        applyAppearance(
+            appearanceSettings.copy(
+                experimentalSocialBrowserMode = explicit,
+                experimentalSocialBrowserApps = appearanceSettings.experimentalSocialBrowserApps - id,
+                experimentalSocialBrowserOff = appearanceSettings.experimentalSocialBrowserOff - id,
+            ),
+        )
+    }
+
+    fun addCustomBrowserApp(packageName: String, label: String, url: String) {
+        val clean = url.trim()
+        if (!clean.startsWith("https://") && !clean.startsWith("http://")) return
+        if (SocialBrowserApps.idFor(packageName) != null) return
+        val next = appearanceSettings.customBrowserApps
+            .filterNot { it.packageName.equals(packageName, ignoreCase = true) } +
+            SocialBrowserApps.Custom(packageName, label.ifBlank { packageName }, clean)
+        applyAppearance(appearanceSettings.copy(customBrowserApps = next))
+        actionApps.invalidate()
+    }
+
+    fun setCustomBrowserMode(packageName: String, mode: SocialBrowserApps.BrowserMode) {
+        val next = appearanceSettings.customBrowserApps.map { app ->
+            if (app.packageName.equals(packageName, ignoreCase = true)) app.copy(mode = mode) else app
+        }
+        applyAppearance(appearanceSettings.copy(customBrowserApps = next))
+    }
+
+    fun removeCustomBrowserApp(packageName: String) {
+        val next = appearanceSettings.customBrowserApps
+            .filterNot { it.packageName.equals(packageName, ignoreCase = true) }
+        applyAppearance(appearanceSettings.copy(customBrowserApps = next))
+        actionApps.invalidate()
     }
 
     fun setExperimentalNavShortcuts(enabled: Boolean) {
@@ -5242,7 +5394,28 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 if (payload.isNotBlank()) actionQuery = payload
             }
             SpaceAddon.NAV -> {
+                if (payload.isBlank()) {
+                    beginInAppSearch(shortcut, placeSearch = true)
+                    return
+                }
+                val app = resolveActionApp(shortcut, ActionAppKind.Nav)
+                    ?: resolveCommonApp(shortcut)?.let { launch ->
+                        InstalledActionApp(
+                            name = launch.label,
+                            packageName = launch.packageName,
+                            color = androidx.compose.ui.graphics.Color(0xFF33CCFF),
+                            icon = launch.icon,
+                        )
+                    }
+                if (app == null) {
+                    spaceAddon = null
+                    spaceShortcutId = null
+                    showToast("${shortcut.label} isn't installed")
+                    actionQuery = ""
+                    return
+                }
                 composeKind = ActionAppKind.Nav
+                composeApp = app
                 actionQuery = payload
             }
             SpaceAddon.NOTE -> {
@@ -5313,6 +5486,23 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 resolveActionApp(shortcut, ActionAppKind.Ai)?.let { composeApp = it }
                 actionQuery = payload
             }
+            SpaceAddon.POST -> {
+                if (payload.isBlank()) {
+                    beginInAppSearch(shortcut)
+                    return
+                }
+                val app = resolveActionApp(shortcut, ActionAppKind.Social)
+                    ?: actionApps.resolvePackage(shortcut.packages.firstOrNull().orEmpty())
+                if (app == null) {
+                    spaceAddon = null
+                    spaceShortcutId = null
+                    showToast("${shortcut.label} isn't installed")
+                    actionQuery = ""
+                    return
+                }
+                val result = runCatching { intents.sharePost(app, payload) }.getOrElse { PostResult.Failed }
+                announcePost(app, result, composerOnly = false)
+            }
         }
     }
 
@@ -5347,6 +5537,60 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             ?: actionApps.resolvePackage(launch.packageName)
     }
 
+    private fun beginAddonForPackage(packageName: String, payload: String = "") {
+        val label = apps.firstOrNull { it.packageName == packageName }?.label ?: packageName
+        val addon = AppAddonGuess.forPackage(packageName, label)
+        beginCommonAddon(
+            CommonAppShortcut(
+                id = "pkg:$packageName",
+                label = label,
+                phrases = emptyList(),
+                packages = listOf(packageName),
+                addon = addon,
+            ),
+            payload,
+        )
+    }
+
+    private fun beginInAppSearch(
+        shortcut: CommonAppShortcut,
+        payload: String = "",
+        placeSearch: Boolean = false,
+    ) {
+        val launch = resolveCommonApp(shortcut)
+        if (launch == null) {
+            spaceAddon = null
+            spaceShortcutId = null
+            showToast("${shortcut.label} isn't installed")
+            actionQuery = ""
+            return
+        }
+        pickSearchScope(
+            if (placeSearch) resolvedPlaceSearch(shortcut, launch)
+            else resolvedSearchFor(shortcut, launch),
+        )
+        spaceAddon = SpaceAddon.SEARCH
+        if (payload.isNotBlank()) actionQuery = payload
+    }
+
+    private fun resolvedPlaceSearch(shortcut: CommonAppShortcut, app: LaunchableApp): ResolvedSearchApp {
+        val def = SearchableAppDef(
+            appName = shortcut.label,
+            displayName = shortcut.label,
+            keywords = shortcut.phrases,
+            color = 0xFF33CCFF,
+            packages = listOf(app.packageName),
+            altSearchUrls = { q -> NavIntents.searchUris(app.packageName, q).drop(1) },
+            searchUrl = { q -> NavIntents.searchUris(app.packageName, q).firstOrNull().orEmpty() },
+        )
+        val ctx = getApplication<Application>()
+        return ResolvedSearchApp(
+            def,
+            app,
+            searchComponent = SearchableApps.findSearchComponent(ctx, app.packageName),
+        )
+    }
+
     private fun resolvedSearchFor(shortcut: CommonAppShortcut, app: LaunchableApp): ResolvedSearchApp {
         searchableApps.firstOrNull { it.app.packageName == app.packageName }?.let { return it }
         val def = SearchableApps.catalog.firstOrNull { cat ->
@@ -5378,15 +5622,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         beginCommonAddon(shortcut, payload)
         when (shortcut.addon) {
             SpaceAddon.SEARCH -> if (actionQuery.isNotBlank()) searchInScope()
+            SpaceAddon.POST -> Unit
             SpaceAddon.NAV -> {
                 val dest = CommandDetector.stripNavToPrefix(payload)
-                val navApps = installedFor(ActionAppKind.Nav, "")
-                val preferred = store.commandPreferred(ActionAppKind.Nav.name)
-                val system = systemDefaultPackage(ActionAppKind.Nav)
-                val target = navApps.firstOrNull { it.packageName == preferred }
-                    ?: navApps.firstOrNull { it.packageName == system }
-                    ?: navApps.singleOrNull()
-                    ?: resolveActionApp(shortcut, ActionAppKind.Nav)
+                val target = resolveActionApp(shortcut, ActionAppKind.Nav)
+                    ?: composeApp.takeIf { composeKind == ActionAppKind.Nav }
                 if (target != null) navigateWith(target, dest)
                 else showToast("No maps app installed")
             }
@@ -5399,6 +5639,17 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     private fun launchCommonApp(shortcut: CommonAppShortcut) {
+        val pkg = shortcut.packages.firstOrNull()
+        if (pkg != null && browserMode(pkg) == SocialBrowserApps.BrowserMode.ON) {
+            val url = SocialBrowserApps.webUrl(pkg)
+            if (url != null && ReusedBrowser.open(getApplication(), url)) {
+                showToast("Opening ${shortcut.label} in the browser")
+                LauncherCommands.suppressHomeBriefly()
+                MadApp.instance.deferLauncherToBack()
+                closeActionBox()
+                return
+            }
+        }
         val app = resolveCommonApp(shortcut)
         if (app == null) {
             showToast("${shortcut.label} isn't installed")
@@ -5626,28 +5877,102 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun openSocialComposer(app: InstalledActionApp) {
-        val result = runCatching { intents.openComposer(app) }.getOrElse { PostResult.Failed }
+    private fun announcePost(app: InstalledActionApp, result: PostResult, composerOnly: Boolean) {
+        val browserPost = allowsBrowser(app.packageName, SocialBrowserApps.BrowserCommand.POST)
         when (result) {
-            PostResult.Started -> showToast("Opening ${app.name}")
+            PostResult.Started -> showToast(
+                if (browserPost) "Opening ${app.name} in the browser"
+                else if (composerOnly) "Opening ${app.name}"
+                else "Post in ${app.name}",
+            )
             PostResult.Automating -> {
                 showToast("Opening ${app.name} composer…")
                 LauncherCommands.suppressHomeBriefly()
-                MadApp.instance.deferLauncherToBack()
+                if (composerOnly) MadApp.instance.deferLauncherToBack()
             }
-            PostResult.PasteManual -> showToast("Opened ${app.name} — tap the composer")
-            PostResult.Failed -> showToast("Couldn't open ${app.name}")
+            PostResult.PasteManual -> showToast(
+                if (browserPost) "Opening ${app.name} in the browser — text copied"
+                else if (composerOnly) "Opened ${app.name} — tap the composer"
+                else "Copied — paste in ${app.name} (Meta blocks filling from MAD)",
+            )
+            PostResult.NotWorking ->
+                showToast("${app.name} posts aren't working yet — see Settings → Not working")
+            PostResult.Failed -> showToast(
+                if (composerOnly) "Couldn't open ${app.name}"
+                else "Couldn't post to ${app.name} — see Settings → Not working",
+            )
         }
-        if (result != PostResult.Failed) closeActionBox()
+        if (result != PostResult.Failed && result != PostResult.NotWorking) closeActionBox()
+    }
+
+    fun openSocialComposer(app: InstalledActionApp) {
+        val result = runCatching { intents.openComposer(app) }.getOrElse { PostResult.Failed }
+        announcePost(app, result, composerOnly = true)
     }
 
     fun pickAtApp(app: InstalledActionApp) {
+        if (openMessagingInBrowser(app)) return
+        if (SocialInbox.hasInbox(app.packageName)) {
+            openSocialInbox(app)
+            return
+        }
         val kind = if (actionApps.find(ActionAppKind.Email, app.packageName) != null) {
             ActionAppKind.Email
         } else {
             ActionAppKind.Messaging
         }
         pickApp(kind, app)
+    }
+
+    fun openSocialInbox(app: InstalledActionApp) {
+        when (SocialInbox.open(getApplication(), app.packageName)) {
+            InboxOpenResult.Opened -> {
+                showToast("Messages in the browser")
+                LauncherCommands.suppressHomeBriefly()
+                MadApp.instance.deferLauncherToBack()
+                closeActionBox()
+            }
+            InboxOpenResult.NotWorking ->
+                showToast("Messages in ${app.name} aren't working yet — see Settings → Not working")
+            InboxOpenResult.Failed ->
+                showToast("Couldn't open messages in the browser")
+        }
+    }
+
+    private fun openMessagingInBrowser(app: InstalledActionApp): Boolean {
+        if (!allowsBrowser(app.packageName, SocialBrowserApps.BrowserCommand.MSG)) return false
+        val url = SocialInbox.webUrl(app.packageName)
+            ?: SocialBrowserApps.webUrl(app.packageName, appearanceSettings.customBrowserApps)
+        if (url == null) {
+            showToast("${app.name} has no website chat")
+            return true
+        }
+        val ok = ReusedBrowser.open(getApplication(), url)
+        if (ok) {
+            showToast("Opening ${app.name} in the browser")
+            LauncherCommands.suppressHomeBriefly()
+            MadApp.instance.deferLauncherToBack()
+            closeActionBox()
+        } else {
+            showToast("Couldn't open ${app.name} in the browser")
+        }
+        return true
+    }
+
+    fun tapFilterApp(kind: ActionAppKind, app: InstalledActionApp) {
+        if ((kind == ActionAppKind.Messaging || kind == ActionAppKind.Email) &&
+            browserMode(app.packageName) == SocialBrowserApps.BrowserMode.ON &&
+            openMessagingInBrowser(app)
+        ) {
+            return
+        }
+        if ((kind == ActionAppKind.Messaging || kind == ActionAppKind.Email) &&
+            SocialInbox.hasInbox(app.packageName)
+        ) {
+            openSocialInbox(app)
+            return
+        }
+        launchActionApp(app)
     }
 
     /** Symbol-filter tap: open the app as if Enter on a common-app shortcut. */
@@ -5673,14 +5998,27 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     /** Symbol-filter long-press: the same Space addon as `gm ` / `wa `. */
     fun spaceActionForFilter(kind: ActionAppKind, app: InstalledActionApp) {
         actionQuery = ""
+        when (kind) {
+            ActionAppKind.Messaging, ActionAppKind.Email -> {
+                if (SocialInbox.hasInbox(app.packageName)) {
+                    openSocialInbox(app)
+                } else {
+                    pickAtApp(app)
+                }
+                return
+            }
+            ActionAppKind.Social -> {
+                openSocialComposer(app)
+                return
+            }
+            else -> Unit
+        }
         val shortcut = CommonAppShortcuts.byPackage(app.packageName)
         if (shortcut != null) {
             beginCommonAddon(shortcut)
             return
         }
         when (kind) {
-            ActionAppKind.Messaging, ActionAppKind.Email -> pickAtApp(app)
-            ActionAppKind.Social -> pickApp(ActionAppKind.Social, app)
             ActionAppKind.VoiceCall -> pickCallApp(ActionAppKind.VoiceCall, app, "")
             ActionAppKind.VideoCall -> pickCallApp(ActionAppKind.VideoCall, app, "")
             ActionAppKind.Ai -> {
@@ -5738,6 +6076,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             installedFor(ActionAppKind.Email, filter).forEach { app ->
                 if (seen.add(app.packageName)) add(app)
             }
+            installedFor(ActionAppKind.Social, filter).forEach { app ->
+                if (SocialInbox.hasInbox(app.packageName) && seen.add(app.packageName)) add(app)
+            }
         }
     }
 
@@ -5757,10 +6098,24 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private fun openConversationNow(app: InstalledActionApp, contact: ContactEntry) {
         val ok = runCatching { intents.openConversation(app, contact) }.getOrDefault(false)
         if (ok) {
-            showToast("Opening ${contact.name} in ${app.name}")
+            val where = if (
+                contact.name.isBlank() &&
+                SocialInbox.hasInbox(app.packageName) &&
+                allowsBrowser(app.packageName, SocialBrowserApps.BrowserCommand.MSG)
+            ) {
+                "the browser"
+            } else {
+                app.name
+            }
+            showToast("Opening ${contact.name} in $where")
             LauncherCommands.suppressHomeBriefly()
             MadApp.instance.deferLauncherToBack()
             closeActionBox()
+        } else if (
+            SocialInbox.hasInbox(app.packageName) &&
+            !allowsBrowser(app.packageName, SocialBrowserApps.BrowserCommand.MSG)
+        ) {
+            showToast("Messages in ${app.name} aren't working yet — see Settings → Not working")
         } else {
             showToast("Couldn't open ${contact.name} in ${app.name}")
         }
@@ -6082,11 +6437,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                     return
                 }
                 !calcMode && pendingUserShortcutPkg == null && CommandAliases.isUserShortcutCommit(value) -> {
-                    pendingUserShortcutPkg =
-                        (UserShortcuts.matchDetailed(value.trimEnd())?.second as? ActionCommand.OpenApp)
-                            ?.packageName
-                    composeKind = null
-                    actionQuery = ""
+                    val pkg = (UserShortcuts.matchDetailed(value.trimEnd())?.second as? ActionCommand.OpenApp)
+                        ?.packageName
+                    if (pkg.isNullOrBlank()) return
+                    beginAddonForPackage(pkg)
                     return
                 }
                 !contactLookupActive && CommandAliases.isContactLookupCommit(value) -> {
@@ -6478,16 +6832,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             searchScope != null && actionQuery.isNotBlank() -> searchInScope()
             app != null && kind == ActionAppKind.Social && actionQuery.isNotBlank() -> {
                 val result = runCatching { intents.sharePost(app, actionQuery) }.getOrElse { PostResult.Failed }
-                when (result) {
-                    PostResult.Started -> showToast("Post in ${app.name}")
-                    PostResult.Automating -> {
-                        showToast("Opening ${app.name} composer…")
-                        LauncherCommands.suppressHomeBriefly()
-                    }
-                    PostResult.PasteManual -> showToast("Copied — paste in ${app.name} (Meta blocks filling from MAD)")
-                    PostResult.Failed -> showToast("Couldn't post to ${app.name} — see Not working")
-                }
-                if (result != PostResult.Failed) closeActionBox()
+                announcePost(app, result, composerOnly = false)
             }
             app != null && contact != null && actionQuery.isNotBlank() && kind == ActionAppKind.Email -> {
                 runCatching { intents.sendEmail(app, contact, actionQuery) }
@@ -6934,6 +7279,34 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun listenerEnabled(): Boolean = grants.notificationListener || listenerConnected
+
+    fun hasSubmittedSearchable(packageName: String): Boolean =
+        packageName in store.submittedSearchablePackages
+
+    fun searchableAppLists(): Pair<List<SpaceCapableApp>, List<LaunchableApp>> {
+        val ctx = getApplication<Application>()
+        return AppSpaceCapability.partition(ctx, apps, searchableApps, ctx.packageName)
+    }
+
+    fun submitSearchableApp(app: LaunchableApp) {
+        if (searchableSubmittingPkg != null) return
+        if (hasSubmittedSearchable(app.packageName)) {
+            showToast("Already sent ${app.label}")
+            return
+        }
+        searchableSubmittingPkg = app.packageName
+        viewModelScope.launch {
+            val ctx = getApplication<Application>()
+            val request = AppSpaceCapability.buildRequest(ctx, app, madVersionName())
+            val result = FeedbackSubmitter.submitSearchableRequest(ctx, request)
+            if (result.outcome == FeedbackSubmitter.SubmitOutcome.GITHUB_OK) {
+                store.submittedSearchablePackages = store.submittedSearchablePackages + app.packageName
+                searchableSubmitRev++
+            }
+            searchableSubmittingPkg = null
+            showToast(result.message)
+        }
+    }
 
     fun submitHelpImprove(name: String, email: String, report: String) {
         if (report.isBlank()) {

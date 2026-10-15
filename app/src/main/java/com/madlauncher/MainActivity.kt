@@ -53,7 +53,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun attachBaseContext(newBase: Context) {
-        super.attachBaseContext(MadApp.englishContext(newBase))
+        super.attachBaseContext(MadApp.launcherContext(newBase))
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

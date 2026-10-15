@@ -32,6 +32,8 @@ object PlatformHelp {
         PlatformFeature.ACTIONBOX_TRANSLATE -> "Translate (/t)"
         PlatformFeature.ACTIONBOX_NOTES -> "Notes (/n)"
         PlatformFeature.ACTIONBOX_NAV -> "Navigation (nav)"
+        PlatformFeature.ACTIONBOX_SOCIAL_DM -> "Social DMs in apps (@)"
+        PlatformFeature.ACTIONBOX_TRUTH_POST -> "Social posts in apps (space)"
     }
 
     fun statusLabel(status: FeatureStatus): String = when (status) {
@@ -83,9 +85,25 @@ object PlatformHelp {
                 "Messenger, Telegram, Signal, Instagram, Discord, and similar apps have no reliable public call API on Android. " +
                     "MAD only supports Phone and WhatsApp for # and *. Open those apps directly to call there."
             PlatformFeature.ACTIONBOX_SOCIAL_POST ->
-                "X/Twitter, LinkedIn, Reddit, Facebook, Instagram, Truth Social, and similar apps open their composer. Discord, TikTok, Facebook, and Instagram use accessibility to tap the input field. Nothing is posted until you tap Post in the app."
-            PlatformFeature.ACTIONBOX_META_SOCIAL ->
-                "Facebook and Instagram block filling posts from other apps. ! opens the composer (accessibility taps the field when enabled) so you can type there."
+                "Space posts into social apps do not open inside those apps. They are listed under Not working. Chats that already open in the app stay there until you turn that app on under Open in browser."
+            PlatformFeature.ACTIONBOX_SOCIAL_DM -> when (status) {
+                FeatureStatus.DEGRADED ->
+                    "Opening messages inside those apps still does not work. Apps turned on under Experimental → Open in browser use the website, and they share one browser tab."
+                else ->
+                    "Opening messages inside X, Instagram, LinkedIn, TikTok, Reddit, Truth Social, Threads, Bluesky, Mastodon, Tumblr, Discord, Pinterest, Weibo, and VK does not work. Turn on each app under Settings → Experimental → Open in browser. Messenger searches inside the app."
+            }
+            PlatformFeature.ACTIONBOX_TRUTH_POST -> when (status) {
+                FeatureStatus.DEGRADED ->
+                    "Those apps still do not accept Space posts. Each app turned on under Experimental → Open in browser uses the website. They share one browser tab."
+                else ->
+                    "Space posts into X, LinkedIn, Reddit, Truth Social, Instagram, Threads, TikTok, Discord, Bluesky, Mastodon, Tumblr, Pinterest, Weibo, and VK do not work in the apps. Turn on each app under Settings → Experimental → Open in browser."
+            }
+            PlatformFeature.ACTIONBOX_META_SOCIAL -> when (status) {
+                FeatureStatus.DEGRADED ->
+                    "Instagram and Threads still block posts from other apps. Turn each one on under Experimental → Open in browser to use the website. They share one browser tab. Facebook's site only offers the app."
+                else ->
+                    "Instagram and Threads block posts from other apps. Turn each one on under Settings → Experimental → Open in browser. Facebook's site only offers the app."
+            }
             PlatformFeature.ACTIONBOX_MESSAGING ->
                 "@ picks an app and a contact, then opens that chat ready to type. Nothing is sent until you tap Send in the app. Recents need notification access."
             PlatformFeature.ACTIONBOX_CONTACT_LOOKUP ->
@@ -122,6 +140,10 @@ object PlatformHelp {
             "No notes app installed. /n appears after you install one."
         PlatformFeature.ACTIONBOX_NAV ->
             "No maps app installed. nav appears after you install Maps or Waze."
+        PlatformFeature.ACTIONBOX_SOCIAL_DM ->
+            "Opening social DMs inside the apps does not work yet."
+        PlatformFeature.ACTIONBOX_TRUTH_POST ->
+            "Space posts into those social apps do not work yet."
         else ->
             "This isn't on the phone. MAD only lists it after the app is installed."
     }
@@ -192,6 +214,8 @@ object PlatformHelp {
             PlatformFeature.ACTIONBOX_TRANSLATE,
             PlatformFeature.ACTIONBOX_NOTES,
             PlatformFeature.ACTIONBOX_NAV,
+            PlatformFeature.ACTIONBOX_SOCIAL_DM,
+            PlatformFeature.ACTIONBOX_TRUTH_POST,
             -> Unit
         }
 

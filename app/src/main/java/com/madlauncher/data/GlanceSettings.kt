@@ -20,6 +20,12 @@ data class GlanceBox(val x: Float, val y: Float, val w: Float, val h: Float) {
 
 enum class GlanceDateStyle { WEEKDAY, LONG, SHORT, NUMERIC }
 
+enum class GlanceWeatherStyle { TEXT, TEMP, CONDITION, STACKED }
+
+enum class GlanceUnreadStyle { ICONS, COUNT, NAMES, BADGE }
+
+enum class GlanceStatStyle { LABEL, VALUE, RING, BAR }
+
 enum class GlanceFont { DEFAULT, SERIF, MONO }
 
 enum class GlanceWeight { LIGHT, REGULAR, BOLD }
@@ -64,6 +70,11 @@ object GlanceElements {
 data class GlanceSettings(
     val clockStyle: GlanceClockStyle = GlanceClockStyle.CLASSIC,
     val dateStyle: GlanceDateStyle = GlanceDateStyle.LONG,
+    val weatherStyle: GlanceWeatherStyle = GlanceWeatherStyle.TEXT,
+    val unreadStyle: GlanceUnreadStyle = GlanceUnreadStyle.ICONS,
+    val batteryStyle: GlanceStatStyle = GlanceStatStyle.LABEL,
+    val cpuStyle: GlanceStatStyle = GlanceStatStyle.LABEL,
+    val ramStyle: GlanceStatStyle = GlanceStatStyle.LABEL,
     val background: Boolean = false,
     val backgroundArgb: Long = 0xFF2E3440,
     val alpha: Float = 0.88f,
@@ -78,6 +89,13 @@ data class GlanceSettings(
 
     fun typeOf(id: String): GlanceType = types[id] ?: GlanceElements.defaultType(id, clockStyle)
 
+    fun statStyle(id: String): GlanceStatStyle = when (id) {
+        GlanceElements.BATTERY -> batteryStyle
+        GlanceElements.CPU -> cpuStyle
+        GlanceElements.RAM -> ramStyle
+        else -> GlanceStatStyle.LABEL
+    }
+
     fun liveSeconds(): Boolean = clockStyle == GlanceClockStyle.SECONDS ||
         clockStyle == GlanceClockStyle.ANALOG ||
         clockStyle == GlanceClockStyle.ANALOG_NUMBERS
@@ -86,6 +104,11 @@ data class GlanceSettings(
         val obj = JSONObject()
         obj.put("clockStyle", clockStyle.name)
         obj.put("dateStyle", dateStyle.name)
+        obj.put("weatherStyle", weatherStyle.name)
+        obj.put("unreadStyle", unreadStyle.name)
+        obj.put("batteryStyle", batteryStyle.name)
+        obj.put("cpuStyle", cpuStyle.name)
+        obj.put("ramStyle", ramStyle.name)
         obj.put("background", background)
         obj.put("backgroundArgb", backgroundArgb)
         obj.put("alpha", alpha.toDouble())
@@ -175,6 +198,16 @@ data class GlanceSettings(
                         ?: GlanceClockStyle.CLASSIC,
                     dateStyle = GlanceDateStyle.entries.firstOrNull { it.name == o.optString("dateStyle") }
                         ?: GlanceDateStyle.LONG,
+                    weatherStyle = GlanceWeatherStyle.entries.firstOrNull { it.name == o.optString("weatherStyle") }
+                        ?: GlanceWeatherStyle.TEXT,
+                    unreadStyle = GlanceUnreadStyle.entries.firstOrNull { it.name == o.optString("unreadStyle") }
+                        ?: GlanceUnreadStyle.ICONS,
+                    batteryStyle = GlanceStatStyle.entries.firstOrNull { it.name == o.optString("batteryStyle") }
+                        ?: GlanceStatStyle.LABEL,
+                    cpuStyle = GlanceStatStyle.entries.firstOrNull { it.name == o.optString("cpuStyle") }
+                        ?: GlanceStatStyle.LABEL,
+                    ramStyle = GlanceStatStyle.entries.firstOrNull { it.name == o.optString("ramStyle") }
+                        ?: GlanceStatStyle.LABEL,
                     background = o.optBoolean("background", false),
                     backgroundArgb = o.optLong("backgroundArgb", 0xFF2E3440),
                     alpha = o.optDouble("alpha", 0.88).toFloat().coerceIn(0.05f, 1f),

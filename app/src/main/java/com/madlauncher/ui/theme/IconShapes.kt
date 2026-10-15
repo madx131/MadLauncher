@@ -13,8 +13,42 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import com.madlauncher.data.IconShapeId
 import kotlin.math.min
 
+/**
+ * Where the app logo sits inside a mask.
+ * [centerX] and [centerY] are fractions of the icon slot (0–1, y grows downward).
+ * [scale] is the fraction of the slot used by the foreground layer. Adaptive glyphs
+ * occupy about the center 66% of that layer.
+ */
+data class IconLogoSlot(
+    val centerX: Float = 0.5f,
+    val centerY: Float = 0.5f,
+    val scale: Float = 1f,
+) {
+    val placesLogo: Boolean
+        get() = scale < 0.999f || kotlin.math.abs(centerX - 0.5f) > 0.001f || kotlin.math.abs(centerY - 0.5f) > 0.001f
+}
+
 /** MAD icon masks — keep radii conservative so paths never collapse to empty (blank icons). */
 object IconShapes {
+    fun logoSlot(shape: IconShapeId): IconLogoSlot = IconShapeGeometry.logoSlot(shape)
+
+    /** Star, moon, and the other playful masks reshape the fill and park the logo on [logoSlot]. */
+    fun shapesFillOnly(shape: IconShapeId): Boolean = when (shape) {
+        IconShapeId.STAR,
+        IconShapeId.TRIANGLE,
+        IconShapeId.HEXAGON,
+        IconShapeId.COMET,
+        IconShapeId.CRESCENT,
+        IconShapeId.SUN -> true
+        else -> false
+    }
+
+    /**
+     * Shortcut Maker / system adaptive draw: one clip, background full-bleed,
+     * foreground on the 108dp layer (25% inset) so the glyph stays in the safe zone.
+     */
+    fun usesAdaptiveInset(shape: IconShapeId): Boolean = shape == IconShapeId.ADAPTIVE
+
     fun of(shape: IconShapeId, cornerDp: Float): Shape = when (shape) {
         // Adaptive keeps each glyph’s own alpha; clip is a no-op square.
         IconShapeId.ADAPTIVE -> RoundedCornerShape(0.dp)
@@ -26,8 +60,50 @@ object IconShapes {
         // Teardrop: three round corners + one sharp. Never use 50% on three corners —
         // that self-intersects and clips the icon to nothing.
         IconShapeId.TEARDROP -> TeardropShape
+        IconShapeId.STAR -> StarShape
+        IconShapeId.TRIANGLE -> TriangleShape
+        IconShapeId.HEXAGON -> HexagonShape
+        IconShapeId.COMET -> CometShape
+        IconShapeId.CRESCENT -> CrescentShape
+        IconShapeId.SUN -> SunShape
+        IconShapeId.ADAPTIVE -> RoundedCornerShape(percent = 30)
     }
 }
+
+/** Closed polyline mask. Same instance per shape so clip equality stays stable. */
+private class OutlineShape(private val id: IconShapeId) : Shape {
+    override fun createOutline(
+        size: Size,
+        layoutDirection: LayoutDirection,
+        density: Density,
+    ): Outline {
+        val pts = IconShapeGeometry.outline(id, size.width, size.height)
+        val path = Path()
+        if (pts.size < 3) {
+            path.moveTo(0f, 0f)
+            path.lineTo(size.width, 0f)
+            path.lineTo(size.width, size.height)
+            path.lineTo(0f, size.height)
+            path.close()
+        } else {
+            path.moveTo(pts[0].first, pts[0].second)
+            for (i in 1 until pts.size) path.lineTo(pts[i].first, pts[i].second)
+            path.close()
+        }
+        return Outline.Generic(path)
+    }
+
+    override fun equals(other: Any?): Boolean = other is OutlineShape && other.id == id
+
+    override fun hashCode(): Int = id.hashCode()
+}
+
+private val StarShape = OutlineShape(IconShapeId.STAR)
+private val TriangleShape = OutlineShape(IconShapeId.TRIANGLE)
+private val HexagonShape = OutlineShape(IconShapeId.HEXAGON)
+private val CometShape = OutlineShape(IconShapeId.COMET)
+private val CrescentShape = OutlineShape(IconShapeId.CRESCENT)
+private val SunShape = OutlineShape(IconShapeId.SUN)
 
 /** Bottom-start is the pointed/soft corner; other three are round (~38%). */
 private val TeardropShape = object : Shape {

@@ -125,7 +125,7 @@ class MadApp : Application() {
         if (BuildConfig.ACTION_BOX_APP) {
             super.attachBaseContext(base)
         } else {
-            super.attachBaseContext(englishContext(base))
+            super.attachBaseContext(launcherContext(base))
         }
     }
 
@@ -169,18 +169,25 @@ class MadApp : Application() {
         if (appearance != store.appearanceSettings) {
             store.appearanceSettings = appearance
         }
-        migrateLanguageEnglishOnly(appearance)
         LanguageOverlay.migrateInstalledPacks(this)
         val overlay = com.madlauncher.data.LanguageCodes.migrateFileName(
             store.appearanceSettings.languageOverlay,
         )
-        if (overlay != store.appearanceSettings.languageOverlay) {
-            store.appearanceSettings = store.appearanceSettings.copy(languageOverlay = overlay)
+        val bundledHebrew = !store.languageUserPicked &&
+            overlay.isBlank() &&
+            com.madlauncher.data.SystemLanguagePack.fileNameFor(LanguageOverlay.systemLocale()) == "heb.json"
+        val appliedOverlay = if (bundledHebrew) "heb.json" else overlay
+        if (appliedOverlay != store.appearanceSettings.languageOverlay) {
+            store.appearanceSettings = store.appearanceSettings.copy(languageOverlay = appliedOverlay)
         }
-        LanguageOverlay.load(this, overlay)
-        NavShortcutBridge.update(appearance)
-        AppearanceBridge.update(appearance)
-        SystemShadeController.syncWithAppearance(this, appearance)
+        if (appliedOverlay == "heb.json") {
+            LanguageOverlay.installBundledPack(this, appliedOverlay)
+        }
+        LanguageOverlay.load(this, appliedOverlay)
+        val live = store.appearanceSettings
+        NavShortcutBridge.update(live)
+        AppearanceBridge.update(live)
+        SystemShadeController.syncWithAppearance(this, live)
         seedPlatformBridge()
         runCatching { MessagingAppRegistry.refresh(this, actionApps) }
         SmsInboxMonitor.start(this)
@@ -193,16 +200,6 @@ class MadApp : Application() {
         if (BuildConfig.ACTION_BOX_APP) {
             LanguageOverlay.applySystemLanguage(this)
         }
-    }
-
-    private fun migrateLanguageEnglishOnly(appearance: com.madlauncher.data.AppearanceSettings) {
-        if (BuildConfig.ACTION_BOX_APP) return
-        if (store.languageEnglishOnlyMigrated) return
-        LanguageOverlay.clearInstalledPacks(this)
-        if (appearance.languageOverlay.isNotBlank()) {
-            store.appearanceSettings = appearance.copy(languageOverlay = "")
-        }
-        store.languageEnglishOnlyMigrated = true
     }
 
     private fun seedPlatformBridge() {
@@ -259,8 +256,26 @@ class MadApp : Application() {
         lateinit var instance: MadApp
             private set
 
-        fun englishContext(base: Context): Context {
-            val locale = Locale.US
+        fun englishContext(base: Context): Context = configurationContext(base, Locale.US)
+
+        /** Hebrew ships in the APK. A Hebrew phone uses it until Settings picks another language. */
+        fun launcherContext(base: Context): Context {
+            val prefs = base.getSharedPreferences("mad_store", Context.MODE_PRIVATE)
+            val saved = runCatching {
+                val raw = prefs.getString("appearance", null) ?: return@runCatching ""
+                org.json.JSONObject(raw).optString("languageOverlay", "")
+            }.getOrDefault("")
+            val overlay = com.madlauncher.data.LanguageCodes.migrateFileName(saved)
+            val picked = prefs.getBoolean("language_user_picked", false)
+            val systemHebrew = runCatching {
+                val lang = base.resources.configuration.locales[0].language
+                lang == "he" || lang == "iw"
+            }.getOrDefault(false)
+            val hebrew = overlay == "heb.json" || (!picked && overlay.isBlank() && systemHebrew)
+            return configurationContext(base, if (hebrew) Locale.forLanguageTag("he") else Locale.US)
+        }
+
+        private fun configurationContext(base: Context, locale: Locale): Context {
             Locale.setDefault(locale)
             val baseConfig = base.resources.configuration
             val config = Configuration(baseConfig)

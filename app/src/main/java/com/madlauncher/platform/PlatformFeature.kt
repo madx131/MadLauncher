@@ -46,6 +46,10 @@ enum class PlatformFeature {
     ACTIONBOX_TRANSLATE,
     ACTIONBOX_NOTES,
     ACTIONBOX_NAV,
+    /** Social app DM inboxes. In-app deep links are not working. */
+    ACTIONBOX_SOCIAL_DM,
+    /** Space posts that open Truth Social. The app redirect is not working. */
+    ACTIONBOX_TRUTH_POST,
 }
 
 enum class FeatureStatus {
