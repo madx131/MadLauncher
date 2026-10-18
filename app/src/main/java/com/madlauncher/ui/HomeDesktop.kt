@@ -771,6 +771,12 @@ fun emptyPageIconSize(sliderDp: Float, cellW: Dp, cellH: Dp): Dp {
  */
 fun iconLabelSize(sp: Float): androidx.compose.ui.unit.TextUnit = sp.coerceIn(9f, 16f).sp
 
+/** Largest dock icon that still leaves the label visible under it. */
+fun maxDockIconDp(dockHeightDp: Float, labelSp: Float): Float {
+    val text = labelSp.coerceIn(9f, 16f) * 1.35f
+    return (dockHeightDp - text - 6f).coerceIn(33f, 72f)
+}
+
 fun iconSizeForCell(sliderDp: Float, cellW: Dp, @Suppress("UNUSED_PARAMETER") cellH: Dp): Dp {
     val wanted = homeIconSize(sliderDp)
     val maxW = (cellW - 4.dp).coerceAtLeast(1.dp)
@@ -1541,6 +1547,7 @@ fun DesktopIcon(
         if (file != null && file.exists()) {
             val bgAlpha = theme.iconBgAlpha
             val fillOnly = IconShapes.shapesFillOnly(shapeId)
+            val silhouette = IconShapes.usesAdaptiveInset(shapeId)
             val bmp = remember(custom, shapeId, theme.iconCornerDp, bgAlpha) {
                 val raw = android.graphics.BitmapFactory.decodeFile(custom) ?: return@remember null
                 if (fillOnly) maskIconFill(raw, shape, density, bgAlpha, IconShapes.logoSlot(shapeId)) else raw
@@ -1549,8 +1556,12 @@ fun DesktopIcon(
                 androidx.compose.foundation.Image(
                     bitmap = bmp.asImageBitmap(),
                     contentDescription = app.label,
-                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize().clip(shape),
+                    contentScale = if (silhouette) {
+                        androidx.compose.ui.layout.ContentScale.Fit
+                    } else {
+                        androidx.compose.ui.layout.ContentScale.Crop
+                    },
+                    modifier = Modifier.fillMaxSize().then(if (silhouette) Modifier else Modifier.clip(shape)),
                 )
             } else {
                 AppIcon(null, app.label, size = size)

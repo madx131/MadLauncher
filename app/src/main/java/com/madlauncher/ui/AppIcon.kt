@@ -76,6 +76,7 @@ fun AppIcon(
     val logoSlot = IconShapes.logoSlot(shapeId)
     val adaptiveInset = IconShapes.usesAdaptiveInset(shapeId)
     // Rasterize without the OEM adaptive mask, then clip to the MAD shape.
+    // Adaptive keeps the delivered silhouette and is not clipped to a tile.
     val bmp = remember(drawable, px, shapeId, theme.iconCornerDp, bgAlpha, packageName, activityName) {
         rasterizeForMadShape(
             context, drawable, px, bgAlpha, shape, density, fillOnly, logoSlot, adaptiveInset, packageName, activityName,
@@ -85,16 +86,16 @@ fun AppIcon(
         Image(
             bitmap = bmp.asImageBitmap(),
             contentDescription = contentDescription,
-            contentScale = ContentScale.Crop,
+            contentScale = if (adaptiveInset) ContentScale.Fit else ContentScale.Crop,
             modifier = Modifier
                 .size(size)
-                .clip(shape),
+                .then(if (adaptiveInset) Modifier else Modifier.clip(shape)),
         )
     } else {
         Box(
             modifier = Modifier
                 .size(size)
-                .clip(shape)
+                .then(if (adaptiveInset) Modifier else Modifier.clip(shape))
                 .background(theme.colors.primary),
         )
     }
@@ -122,9 +123,22 @@ private fun rasterizeForMadShape(
     val adaptive = unwrapAdaptive(drawable)
         ?: packageName?.let { loadAdaptiveFromResources(context, it, activityName) }
     if (adaptiveInset) {
-        return rasterizeSystemAdaptive(drawable, adaptive, px, bgAlpha, shape, density)
+        val source = drawable ?: return null
+        return source.toBitmap(px, px, Bitmap.Config.ARGB_8888)
     }
-    if (adaptive != null) return rasterizeAdaptive(adaptive, px, bgAlpha, shape, density, clipAll = fillOnly, logoSlot)
+    if (adaptive != null) {
+        val raw = renderAdaptiveSquare(adaptive, px, bgAlpha)
+        // Some apps (AliExpress) ship a rounded mark with empty corners. Every mask,
+        // including ones added later, plates that gap so the silhouette is the MAD shape.
+        if (samplePlateColor(raw) != AndroidColor.TRANSPARENT) {
+            return if (fillOnly) {
+                maskIconFill(raw, shape, density, bgAlpha, logoSlot)
+            } else {
+                applyPlateIfNeeded(raw, bgAlpha)
+            }
+        }
+        return rasterizeAdaptive(adaptive, px, bgAlpha, shape, density, clipAll = fillOnly, logoSlot)
+    }
     if (drawable == null) return null
     val raw = drawable.toBitmap(px, px, Bitmap.Config.ARGB_8888)
     return if (fillOnly) maskIconFill(raw, shape, density, bgAlpha, logoSlot) else applyPlateIfNeeded(raw, bgAlpha)
@@ -229,6 +243,12 @@ private fun Canvas.drawAdaptiveExpanded(drawable: AdaptiveIconDrawable, bounds: 
     }
 }
 
+private fun renderAdaptiveSquare(drawable: AdaptiveIconDrawable, px: Int, bgAlpha: Float): Bitmap {
+    val bmp = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888)
+    Canvas(bmp).drawAdaptiveLayers(drawable, px, bgAlpha.coerceIn(0f, 1f), IconLogoSlot())
+    return bmp
+}
+
 private fun rasterizeAdaptive(
     drawable: AdaptiveIconDrawable,
     px: Int,
@@ -322,18 +342,19 @@ fun MadShapePreview(shapeId: IconShapeId, size: Dp, iconBgAlpha: Float) {
             null,
         )
     }
+    val silhouette = IconShapes.usesAdaptiveInset(shapeId)
     if (bmp != null) {
         Image(
             bitmap = bmp.asImageBitmap(),
             contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.size(size).clip(shape),
+            contentScale = if (silhouette) ContentScale.Fit else ContentScale.Crop,
+            modifier = Modifier.size(size).then(if (silhouette) Modifier else Modifier.clip(shape)),
         )
     } else {
         Box(
             modifier = Modifier
                 .size(size)
-                .clip(shape)
+                .then(if (silhouette) Modifier else Modifier.clip(shape))
                 .background(theme.colors.primary),
         )
     }

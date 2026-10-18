@@ -30,6 +30,7 @@ object LanguageCatalog {
             if (!name.endsWith(".json", ignoreCase = true)) continue
             if (name.equals("download-ids.json", ignoreCase = true)) continue
             if (LanguageCodes.isEnglishPack(name)) continue
+            if (!LanguageCodes.isShippedPack(name)) continue
             val migrated = LanguageCodes.migrateFileName(name)
             if (migrated.isBlank()) continue
             if (chosen[migrated] == null || name.equals(migrated, ignoreCase = true)) {
@@ -62,7 +63,8 @@ object LanguageCatalog {
                 val jsonFiles = entries.filter {
                     it.type == "file" &&
                         it.name.endsWith(".json", ignoreCase = true) &&
-                        !LanguageCodes.isEnglishPack(it.name)
+                        !LanguageCodes.isEnglishPack(it.name) &&
+                        LanguageCodes.isShippedPack(it.name)
                 }
                 val remoteReadme = entries.firstOrNull {
                     it.name.equals("README.txt", ignoreCase = true)

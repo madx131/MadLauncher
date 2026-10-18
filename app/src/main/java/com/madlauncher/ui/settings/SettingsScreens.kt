@@ -22,11 +22,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.verticalScroll
 import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.CompareArrows
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -84,6 +87,9 @@ import com.madlauncher.data.PageEffectId
 import com.madlauncher.data.PaletteId
 import com.madlauncher.data.LauncherViewModel
 import com.madlauncher.platform.FeatureStatus
+import com.madlauncher.ui.AppIcon
+import com.madlauncher.ui.BottomDock
+import com.madlauncher.ui.maxDockIconDp
 import com.madlauncher.ui.MadShapePreview
 import com.madlauncher.ui.madString
 import com.madlauncher.ui.theme.LocalMadTheme
@@ -184,6 +190,8 @@ fun SettingsOverlay(
                     SettingsRoute.ACTION_BOX_COMMANDS -> ActionBoxCommandsPage(vm)
                     SettingsRoute.ACTION_BOX_COMMAND_EDIT -> ActionBoxCommandEditPage(vm)
                     SettingsRoute.GLANCE -> GlanceSettingsPage(vm)
+                    SettingsRoute.ICONS -> IconsPage(vm)
+                    SettingsRoute.EDIT_DOCKS -> EditDocksPage(vm)
                     else -> {
                     Column(
                         modifier = Modifier
@@ -195,12 +203,12 @@ fun SettingsOverlay(
                         when (route) {
                             SettingsRoute.HUB -> SettingsHub(vm)
                             SettingsRoute.THEMES -> ThemesPage(vm)
-                            SettingsRoute.ICONS -> IconsPage(vm)
+                            SettingsRoute.ICONS -> Unit
                             SettingsRoute.GESTURES -> GesturesPage(vm)
                             SettingsRoute.FONTS -> FontsPage(vm, onPickFont)
                             SettingsRoute.NAV_SHORTCUTS -> NavShortcutsPage(vm)
                             SettingsRoute.PERMISSIONS -> PermissionsPage(vm)
-                            SettingsRoute.EDIT_DOCKS -> EditDocksPage(vm)
+                            SettingsRoute.EDIT_DOCKS -> Unit
                             SettingsRoute.EXTRAS -> ExtrasPage(vm)
                             SettingsRoute.EXPERIMENTAL -> ExperimentalPage(vm)
                             SettingsRoute.SOCIAL_BROWSER -> SocialBrowserPage(vm)
@@ -264,7 +272,6 @@ private fun SettingsHub(vm: LauncherViewModel) {
     HubRow(stringResource(R.string.settings_route_themes), stringResource(R.string.settings_hub_themes_subtitle)) { vm.openSettingsRoute(SettingsRoute.THEMES) }
     HubRow(stringResource(R.string.settings_route_icons), stringResource(R.string.settings_hub_icons_subtitle)) { vm.openSettingsRoute(SettingsRoute.ICONS) }
     HubRow(stringResource(R.string.settings_route_gestures), stringResource(R.string.settings_hub_gestures_subtitle)) { vm.openSettingsRoute(SettingsRoute.GESTURES) }
-    HubRow(stringResource(R.string.settings_route_fonts), stringResource(R.string.settings_hub_fonts_subtitle)) { vm.openSettingsRoute(SettingsRoute.FONTS) }
     HubRow(stringResource(R.string.settings_route_glance), stringResource(R.string.settings_hub_glance_subtitle)) { vm.openSettingsRoute(SettingsRoute.GLANCE) }
     if (vm.multiOnHome()) {
         HubRow(stringResource(R.string.settings_route_multi), stringResource(R.string.settings_hub_multi_subtitle)) {
@@ -399,116 +406,182 @@ private fun ThemesPage(vm: LauncherViewModel) {
 
 private fun IconShapeId.pickerLabel(): String = when (this) {
     IconShapeId.CRESCENT -> "crescent moon"
+    IconShapeId.BOW_TIE -> "bow tie"
+    IconShapeId.PINE -> "pine tree"
+    IconShapeId.MOUNTAIN -> "mountain"
     else -> name.lowercase().replace('_', ' ')
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun IconsPage(vm: LauncherViewModel) {
     val s = vm.appearanceDraft
+    val c = LocalMadTheme.current.colors
     LaunchedEffect(Unit) { vm.refreshIconPacks() }
-    SectionLabel(stringResource(R.string.settings_section_shape))
-    val previewDp = s.homeIconSizeDp.coerceIn(40f, 88f)
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        IconShapeId.entries.forEach { shape ->
-            val selected = s.iconShape == shape
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier
-                    .width((previewDp + 16f).coerceAtLeast(76f).dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(if (selected) LocalMadTheme.current.colors.primary.copy(alpha = 0.25f) else LocalMadTheme.current.colors.secondary)
-                    .clickable { vm.setIconShape(shape) }
-                    .padding(8.dp),
-            ) {
-                MadShapePreview(shape, previewDp.dp, s.iconBgAlpha)
-                Text(
-                    shape.pickerLabel(),
-                    color = LocalMadTheme.current.colors.fg,
-                    fontSize = 9.sp,
-                    textAlign = TextAlign.Center,
-                    maxLines = 2,
-                )
+    val previewDp = s.homeIconSizeDp.coerceIn(40f, 72f)
+    Column(
+        modifier = Modifier.fillMaxSize().padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(stringResource(R.string.settings_icons_preview), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+        IconsLivePreview(vm, previewDp.dp)
+        Text(stringResource(R.string.settings_icons_preview_hint), color = c.muted, fontSize = 12.sp)
+        Column(
+            modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(stringResource(R.string.settings_section_shape), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            ShapeOptionGrid(
+                shapes = listOf(
+                    IconShapeId.ADAPTIVE,
+                    IconShapeId.ROUNDED_SQUARE,
+                    IconShapeId.SQUARE,
+                    IconShapeId.SQUIRCLE,
+                    IconShapeId.CIRCLE,
+                    IconShapeId.TEARDROP,
+                    IconShapeId.HEXAGON,
+                    IconShapeId.DIAMOND,
+                ),
+                selected = s.iconShape,
+                onPick = vm::setIconShape,
+            )
+            Text(stringResource(R.string.settings_section_playful), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            ShapeOptionGrid(
+                shapes = listOf(
+                    IconShapeId.STAR,
+                    IconShapeId.TRIANGLE,
+                    IconShapeId.COMET,
+                    IconShapeId.CRESCENT,
+                    IconShapeId.SUN,
+                    IconShapeId.MOUNTAIN,
+                    IconShapeId.PINE,
+                    IconShapeId.DOG,
+                    IconShapeId.CAT,
+                    IconShapeId.TIE,
+                    IconShapeId.BOW_TIE,
+                ),
+                selected = s.iconShape,
+                onPick = vm::setIconShape,
+            )
+            Text(stringResource(R.string.settings_icon_size), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            Slider(
+                value = s.homeIconSizeDp,
+                onValueChange = { v -> vm.patchAppearanceDraft { it.copy(homeIconSizeDp = v) } },
+                valueRange = 40f..88f,
+            )
+            Text(stringResource(R.string.settings_icon_size_hint), color = c.muted, fontSize = 11.sp)
+            Text(stringResource(R.string.settings_icon_label_size), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            Slider(
+                value = s.iconLabelSizeSp.coerceIn(9f, 16f),
+                onValueChange = { v -> vm.patchAppearanceDraft { it.copy(iconLabelSizeSp = v) } },
+                valueRange = 9f..16f,
+            )
+            Text(stringResource(R.string.settings_icon_label_hint), color = c.muted, fontSize = 11.sp)
+            Text(stringResource(R.string.settings_section_icon_bg), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            AlphaSlider(stringResource(R.string.settings_alpha_icon_bg), s.iconBgAlpha) { v ->
+                vm.patchAppearanceDraft { it.copy(iconBgAlpha = v) }
+            }
+            Text(stringResource(R.string.settings_icon_bg_hint), color = c.muted, fontSize = 11.sp)
+            Text(stringResource(R.string.settings_folders), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            LabeledOptionGrid(
+                options = listOf(
+                    FolderViewId.GRID to stringResource(R.string.settings_folder_grid),
+                    FolderViewId.STACK to stringResource(R.string.settings_folder_stack),
+                    FolderViewId.BADGE to stringResource(R.string.settings_folder_badge),
+                ),
+                selected = s.folderView,
+                onPick = { view -> vm.patchAppearanceDraft { it.copy(folderView = view) } },
+            )
+            Text(stringResource(R.string.settings_section_badges), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            LabeledOptionGrid(
+                options = listOf(
+                    IconBadgeStyle.DOT to stringResource(R.string.settings_badge_dot),
+                    IconBadgeStyle.NUMBER to stringResource(R.string.settings_badge_number),
+                ),
+                selected = s.iconBadgeStyle,
+                onPick = { style -> vm.patchAppearanceDraft { it.copy(iconBadgeStyle = style) } },
+            )
+            Text(stringResource(R.string.settings_section_icon_pack), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            HubRow(
+                stringResource(R.string.settings_icon_default),
+                if (s.iconPackPackage.isBlank()) {
+                    stringResource(R.string.settings_icon_default_on)
+                } else {
+                    stringResource(R.string.settings_icon_default_reset)
+                },
+            ) { vm.setIconPack("") }
+            vm.iconPacks.forEach { pack ->
+                HubRow(pack.label, pack.packageName) { vm.setIconPack(pack.packageName) }
             }
         }
     }
-    SectionLabel(stringResource(R.string.settings_icon_size))
-    Slider(
-        value = s.homeIconSizeDp,
-        onValueChange = { v -> vm.patchAppearanceDraft { it.copy(homeIconSizeDp = v) } },
-        valueRange = 40f..88f,
-    )
-    Text(
-        stringResource(R.string.settings_icon_size_hint),
-        color = LocalMadTheme.current.colors.muted,
-        fontSize = 11.sp,
-        modifier = Modifier.padding(bottom = 8.dp),
-    )
-    SectionLabel(stringResource(R.string.settings_icon_label_size))
-    Slider(
-        value = s.iconLabelSizeSp.coerceIn(9f, 16f),
-        onValueChange = { v -> vm.patchAppearanceDraft { it.copy(iconLabelSizeSp = v) } },
-        valueRange = 9f..16f,
-    )
-    Text(
-        stringResource(R.string.settings_icon_label_hint),
-        color = LocalMadTheme.current.colors.muted,
-        fontSize = 11.sp,
-        modifier = Modifier.padding(bottom = 8.dp),
-    )
-    SectionLabel(stringResource(R.string.settings_section_icon_bg))
-    AlphaSlider(stringResource(R.string.settings_alpha_icon_bg), s.iconBgAlpha) { v ->
-        vm.patchAppearanceDraft { it.copy(iconBgAlpha = v) }
-    }
-    Text(
-        stringResource(R.string.settings_icon_bg_hint),
-        color = LocalMadTheme.current.colors.muted,
-        fontSize = 11.sp,
-        modifier = Modifier.padding(bottom = 8.dp),
-    )
-    SectionLabel(stringResource(R.string.settings_folders))
-    SegmentedRow(listOf(
-        stringResource(R.string.settings_folder_grid),
-        stringResource(R.string.settings_folder_stack),
-        stringResource(R.string.settings_folder_badge),
-    ), when (s.folderView) {
-        FolderViewId.GRID -> 0
-        FolderViewId.STACK -> 1
-        FolderViewId.BADGE -> 2
-    }) { idx ->
-        vm.patchAppearanceDraft {
-            it.copy(
-                folderView = when (idx) {
-                    1 -> FolderViewId.STACK
-                    2 -> FolderViewId.BADGE
-                    else -> FolderViewId.GRID
-                },
-            )
+}
+
+@Composable
+private fun IconsLivePreview(vm: LauncherViewModel, size: androidx.compose.ui.unit.Dp) {
+    val c = LocalMadTheme.current.colors
+    val samples = remember(vm.apps) { vm.apps.filter { it.icon != null }.take(4) }
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(96.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(c.secondary.copy(alpha = 0.55f))
+            .padding(horizontal = 16.dp),
+    ) {
+        if (samples.isEmpty()) {
+            listOf(IconShapeId.ADAPTIVE, IconShapeId.ROUNDED_SQUARE, IconShapeId.CIRCLE, IconShapeId.STAR).forEach { shape ->
+                MadShapePreview(shape, size, vm.appearanceDraft.iconBgAlpha)
+            }
+        } else {
+            samples.forEach { app ->
+                AppIcon(app.icon, app.label, size = size, packageName = app.packageName, activityName = app.activityName)
+            }
         }
     }
-    SectionLabel(stringResource(R.string.settings_section_badges))
-    SegmentedRow(
-        listOf(
-            stringResource(R.string.settings_badge_dot),
-            stringResource(R.string.settings_badge_number),
-        ),
-        when (s.iconBadgeStyle) {
-            IconBadgeStyle.DOT -> 0
-            IconBadgeStyle.NUMBER -> 1
-        },
-    ) { idx ->
-        vm.patchAppearanceDraft {
-            it.copy(
-                iconBadgeStyle = if (idx == 0) IconBadgeStyle.DOT else IconBadgeStyle.NUMBER,
-            )
+}
+
+@Composable
+private fun ShapeOptionGrid(
+    shapes: List<IconShapeId>,
+    selected: IconShapeId,
+    onPick: (IconShapeId) -> Unit,
+) {
+    LabeledOptionGrid(
+        options = shapes.map { it to it.pickerLabel() },
+        selected = selected,
+        onPick = onPick,
+    )
+}
+
+@Composable
+private fun <T> LabeledOptionGrid(
+    options: List<Pair<T, String>>,
+    selected: T,
+    onPick: (T) -> Unit,
+) {
+    val c = LocalMadTheme.current.colors
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+        options.chunked(2).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                row.forEach { (value, label) ->
+                    val on = value == selected
+                    Text(
+                        label,
+                        color = if (on) c.fg else c.muted,
+                        fontSize = 13.sp,
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (on) c.primary.copy(alpha = 0.35f) else c.secondary)
+                            .clickable { onPick(value) }
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                    )
+                }
+                if (row.size == 1) Spacer(Modifier.weight(1f))
+            }
         }
-    }
-    SectionLabel(stringResource(R.string.settings_section_icon_pack))
-    HubRow(stringResource(R.string.settings_icon_default), if (s.iconPackPackage.isBlank()) stringResource(R.string.settings_icon_default_on) else stringResource(R.string.settings_icon_default_reset)) {
-        vm.setIconPack("")
-    }
-    vm.iconPacks.forEach { pack ->
-        HubRow(pack.label, pack.packageName) { vm.setIconPack(pack.packageName) }
     }
 }
 
@@ -1283,13 +1356,64 @@ private fun EditDocksPage(vm: LauncherViewModel) {
     val s = vm.appearanceDraft
     val c = LocalMadTheme.current.colors
     val context = LocalContext.current
-    SectionLabel(stringResource(R.string.dock_bottom))
-    ToggleRow(stringResource(R.string.dock_apps_button), s.showDockApps) { vm.patchAppearanceDraft { it.copy(showDockApps = !it.showDockApps) } }
-    ToggleRow(stringResource(R.string.dock_action_box), s.showDockActionBox) { vm.patchAppearanceDraft { it.copy(showDockActionBox = !it.showDockActionBox) } }
-    Text(stringResource(R.string.dock_height), color = c.fg, fontSize = 13.sp)
-    Slider(value = s.dockHeightDp, onValueChange = { v -> vm.patchAppearanceDraft { it.copy(dockHeightDp = v) } }, valueRange = 52f..110f)
-    Text(stringResource(R.string.dock_icon_size), color = c.fg, fontSize = 13.sp)
-    Slider(value = s.dockIconSizeDp, onValueChange = { v -> vm.patchAppearanceDraft { it.copy(dockIconSizeDp = v) } }, valueRange = 36f..88f)
+    val iconCap = maxDockIconDp(s.dockHeightDp, s.iconLabelSizeSp)
+    val iconValue = s.dockIconSizeDp.coerceIn(32f, iconCap)
+    Column(
+        modifier = Modifier.fillMaxSize().padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(stringResource(R.string.settings_dock_preview), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+        LaunchedEffect(Unit) { vm.dockRevealed = true }
+        Box(Modifier.fillMaxWidth()) {
+            BottomDock(vm)
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .pointerInput(Unit) {
+                        awaitEachGesture {
+                            while (true) {
+                                val event = awaitPointerEvent(PointerEventPass.Initial)
+                                event.changes.forEach { it.consume() }
+                            }
+                        }
+                    },
+            )
+        }
+        Text(stringResource(R.string.settings_dock_preview_hint), color = c.muted, fontSize = 12.sp)
+        Column(
+            modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+    Text(stringResource(R.string.dock_bottom), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(modifier = Modifier.weight(1f)) {
+            ToggleRow(stringResource(R.string.dock_apps_button), s.showDockApps) {
+                vm.patchAppearanceDraft { it.copy(showDockApps = !it.showDockApps) }
+            }
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            ToggleRow(stringResource(R.string.dock_action_box), s.showDockActionBox) {
+                vm.patchAppearanceDraft { it.copy(showDockActionBox = !it.showDockActionBox) }
+            }
+        }
+    }
+    Text(stringResource(R.string.dock_height), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+    Slider(
+        value = s.dockHeightDp,
+        onValueChange = { v ->
+            vm.patchAppearanceDraft {
+                val cap = maxDockIconDp(v, it.iconLabelSizeSp)
+                it.copy(dockHeightDp = v, dockIconSizeDp = it.dockIconSizeDp.coerceIn(32f, cap))
+            }
+        },
+        valueRange = 52f..110f,
+    )
+    Text(stringResource(R.string.dock_icon_size), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+    Slider(
+        value = iconValue,
+        onValueChange = { v -> vm.patchAppearanceDraft { it.copy(dockIconSizeDp = v) } },
+        valueRange = 32f..iconCap,
+    )
     ToggleRow(stringResource(R.string.dock_second_row), s.dockSecondRow) {
         vm.patchAppearanceDraft { it.copy(dockSecondRow = !it.dockSecondRow) }
     }
@@ -1391,6 +1515,8 @@ private fun EditDocksPage(vm: LauncherViewModel) {
             }
         }
     }
+        }
+    }
 }
 
 @Composable
@@ -1487,6 +1613,11 @@ private fun ShareApkPage(vm: LauncherViewModel) {
 private fun ExtrasPage(vm: LauncherViewModel) {
     val c = LocalMadTheme.current.colors
     if (!vm.independentActionBox) {
+        HubRow(stringResource(R.string.settings_route_fonts), stringResource(R.string.settings_hub_fonts_subtitle)) {
+            vm.openSettingsRoute(SettingsRoute.FONTS)
+        }
+    }
+    if (!vm.independentActionBox) {
         HubRow(
             stringResource(R.string.settings_route_experimental),
             stringResource(R.string.settings_hub_experimental_subtitle),
@@ -1532,6 +1663,7 @@ private fun ExtrasPage(vm: LauncherViewModel) {
     val bundled = LanguageCatalog.bundledEntries(context, labelMap)
     val bundledFiles = bundled.map { it.fileName }.toSet()
     val dropdownPacks = (installed + bundled)
+        .filter { com.madlauncher.data.LanguageCodes.isShippedPack(it.fileName) }
         .distinctBy { it.fileName }
         .sortedBy { it.label.lowercase() }
 
@@ -1588,23 +1720,6 @@ private fun ExtrasPage(vm: LauncherViewModel) {
             }
         }
     }
-    Spacer(Modifier.height(12.dp))
-    Text(
-        stringResource(R.string.extras_get_more),
-        color = c.bg,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 15.sp,
-        textAlign = TextAlign.Center,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(c.primary)
-            .clickable {
-                getMoreOpen = true
-                vm.refreshRemoteLanguageCatalog()
-            }
-            .padding(vertical = 14.dp),
-    )
     if (getMoreOpen) {
         GetMoreLanguagesDialog(
             vm = vm,

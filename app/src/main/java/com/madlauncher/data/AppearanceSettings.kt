@@ -10,39 +10,32 @@ enum class ThemeMode { SYSTEM, DARK, LIGHT }
 enum class PaletteId { NORD, NORD_LIGHT, WALLPAPER, MATERIAL, STEAMPUNK }
 
 enum class IconShapeId {
-    /** Keep each app’s own silhouette (Edge / BlueStacks style) — no MAD mask or fill plate. */
-    ADAPTIVE,
     ROUNDED_SQUARE,
     SQUARE,
     SQUIRCLE,
     CIRCLE,
     TEARDROP,
+    HEXAGON,
+    DIAMOND,
     STAR,
     TRIANGLE,
-    HEXAGON,
     COMET,
     CRESCENT,
     SUN,
-    /** System adaptive icon: background fill, glyph in the safe zone, clipped once. */
+    MOUNTAIN,
+    PINE,
+    DOG,
+    CAT,
+    TIE,
+    BOW_TIE,
+    /** Each app’s own silhouette. No MAD rounded tile. */
     ADAPTIVE,
 }
 
-/** Action Box input-pill typeface (ABS editor). */
-enum class ActionBoxFontId {
-    DEFAULT,
-    SERIF,
-    MONO,
-}
+enum class ActionBoxFontId { DEFAULT, SERIF, MONO }
 
-/** Where Settings / Mic / Close sit on the Action Box input pill. */
-enum class ActionBoxButtonsId {
-    /** Leading icon · field · mic · settings · close */
-    TRAILING,
-    /** Settings · close · mic · field · leading icon flipped to end */
-    LEADING,
-    /** Mic left of field; settings + close on the right */
-    SPLIT,
-}
+/** Where the mic, settings, and close buttons sit on the Action Box input pill. */
+enum class ActionBoxButtonsId { TRAILING, LEADING, SPLIT }
 
 enum class PageEffectId { SLIDE, FADE, STACK, CUBE, DEPTH, BOOK }
 
@@ -135,12 +128,14 @@ data class AppearanceSettings(
     val actionBoxPillArgb: Long = 0xFF81A1C1,
     /** Text / icons inside the ActionBox pill. */
     val actionBoxTextArgb: Long = 0xFF81A1C1,
-    /** Input-pill text scale (0.75–1.5). */
     val actionBoxFontScale: Float = 1f,
-    /** Input-pill overall size (padding / min height). */
     val actionBoxPillScale: Float = 1f,
     val actionBoxFont: ActionBoxFontId = ActionBoxFontId.DEFAULT,
     val actionBoxButtons: ActionBoxButtonsId = ActionBoxButtonsId.TRAILING,
+    /** Microphone button on the input pill. */
+    val actionBoxShowMic: Boolean = true,
+    /** Action Box settings button on the input pill. */
+    val actionBoxShowSettings: Boolean = true,
     val windowAlpha: Float = 0.97f,
     val drawerAlpha: Float = 0.96f,
     val dockAlpha: Float = 0.88f,
@@ -286,6 +281,14 @@ data class AppearanceSettings(
                 actionBoxPillScale = o.optDouble("actionBoxPillScale", 1.0).toFloat().coerceIn(0.75f, 1.5f),
                 actionBoxFont = enumOr(o.optString("actionBoxFont"), ActionBoxFontId.DEFAULT),
                 actionBoxButtons = enumOr(o.optString("actionBoxButtons"), ActionBoxButtonsId.TRAILING),
+                actionBoxShowMic = o.optBoolean(
+                    "actionBoxShowMic",
+                    o.optBoolean("actionBoxToolButtons", true),
+                ),
+                actionBoxShowSettings = o.optBoolean(
+                    "actionBoxShowSettings",
+                    o.optBoolean("actionBoxToolButtons", true),
+                ),
                 windowAlpha = o.optDouble("windowAlpha", 0.97).toFloat(),
                 drawerAlpha = o.optDouble("drawerAlpha", 0.96).toFloat(),
                 dockAlpha = o.optDouble("dockAlpha", 0.88).toFloat(),
@@ -430,6 +433,8 @@ data class AppearanceSettings(
             .put("actionBoxPillScale", actionBoxPillScale.toDouble())
             .put("actionBoxFont", actionBoxFont.name)
             .put("actionBoxButtons", actionBoxButtons.name)
+            .put("actionBoxShowMic", actionBoxShowMic)
+            .put("actionBoxShowSettings", actionBoxShowSettings)
             .put("windowAlpha", windowAlpha.toDouble())
             .put("drawerAlpha", drawerAlpha.toDouble())
             .put("dockAlpha", dockAlpha.toDouble())

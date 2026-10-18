@@ -72,7 +72,7 @@ fun BottomDock(vm: LauncherViewModel) {
         animationSpec = tween(durationMillis = 180),
         label = "dockH",
     )
-    val iconSize = s.dockIconSizeDp.dp.coerceIn(32.dp, 72.dp)
+    val iconSize = s.dockIconSizeDp.dp.coerceIn(32.dp, maxDockIconDp(s.dockHeightDp, s.iconLabelSizeSp).dp)
 
     LaunchedEffect(expanded) {
         if (!expanded) {

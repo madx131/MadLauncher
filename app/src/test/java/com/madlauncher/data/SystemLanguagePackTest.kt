@@ -18,8 +18,10 @@ class SystemLanguagePackTest {
     }
 
     @Test
-    fun indonesianAndNorwegian() {
-        assertEquals("ind.json", SystemLanguagePack.fileNameForLanguage("in"))
-        assertEquals("nor.json", SystemLanguagePack.fileNameForLanguage("nb"))
+    fun onlyHebrewAndRussianShip() {
+        assertEquals("rus.json", SystemLanguagePack.fileNameForLanguage("ru"))
+        assertNull(SystemLanguagePack.fileNameForLanguage("in"))
+        assertNull(SystemLanguagePack.fileNameForLanguage("nb"))
+        assertNull(SystemLanguagePack.fileNameForLanguage("fr"))
     }
 }

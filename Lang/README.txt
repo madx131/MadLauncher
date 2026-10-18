@@ -1,9 +1,9 @@
 MAD Launcher language overlays
 
-These packs are copied into the APK at build (`assets/lang`, all ISO 639-2/T files except `eng.json`).
+The app ships three languages: English (`strings.xml`), Hebrew (`heb.json`), and Russian (`rus.json`).
+Other packs in this folder are not copied into the APK.
 English UI is bundled `strings.xml`. `eng.json` is the translator master and is not installed as an overlay.
 
-Get more languages still lists GitHub `lang/` when a distributor token is present.
 Public APKs use the bundled packs only.
 
 File format: one JSON object — string resource name -> translated text.

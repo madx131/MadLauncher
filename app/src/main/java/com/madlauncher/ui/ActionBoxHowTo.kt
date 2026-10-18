@@ -55,7 +55,7 @@ fun ActionBoxHowToPager(
         HowToPage(
             R.string.action_box_howto_1_title,
             R.string.action_box_howto_1_body,
-            sample = "ig",
+            sample = "x",
             spaceOn = false,
             enterOn = false,
             bang = false,
@@ -63,7 +63,7 @@ fun ActionBoxHowToPager(
         HowToPage(
             R.string.action_box_howto_2_title,
             R.string.action_box_howto_2_body,
-            sample = "ig cats",
+            sample = "x cats",
             spaceOn = true,
             enterOn = false,
             bang = false,
@@ -71,7 +71,7 @@ fun ActionBoxHowToPager(
         HowToPage(
             R.string.action_box_howto_3_title,
             R.string.action_box_howto_3_body,
-            sample = "ig hello",
+            sample = "x hello",
             spaceOn = false,
             enterOn = true,
             bang = false,
@@ -79,7 +79,7 @@ fun ActionBoxHowToPager(
         HowToPage(
             R.string.action_box_howto_4_title,
             R.string.action_box_howto_4_body,
-            sample = "!ig cats",
+            sample = "!x cats",
             spaceOn = false,
             enterOn = true,
             bang = true,

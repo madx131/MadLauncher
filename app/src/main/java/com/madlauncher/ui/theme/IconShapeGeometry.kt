@@ -20,26 +20,37 @@ internal object IconShapeGeometry {
 
     /** Logo anchor for each mask. Classic shapes keep the picture full-bleed and centered. */
     fun logoSlot(shape: IconShapeId): IconLogoSlot = when (shape) {
+        IconShapeId.HEXAGON -> IconLogoSlot(0.50f, 0.50f, 0.82f)
+        IconShapeId.DIAMOND -> IconLogoSlot(0.50f, 0.50f, 0.58f)
         IconShapeId.STAR -> IconLogoSlot(0.50f, 0.50f, 0.70f)
         IconShapeId.TRIANGLE -> IconLogoSlot(0.50f, 0.66f, 0.56f)
-        IconShapeId.HEXAGON -> IconLogoSlot(0.50f, 0.50f, 0.82f)
-        // Head of the comet, not the tail.
         IconShapeId.COMET -> IconLogoSlot(0.62f, 0.34f, 0.48f)
-        // Thick limb on the left. The bite is to the right of this point.
         IconShapeId.CRESCENT -> IconLogoSlot(0.24f, 0.52f, 0.40f)
-        // Face of the sun. The rays stay outside this disk.
         IconShapeId.SUN -> IconLogoSlot(0.50f, 0.50f, 0.72f)
+        IconShapeId.MOUNTAIN -> IconLogoSlot(0.50f, 0.62f, 0.42f)
+        IconShapeId.PINE -> IconLogoSlot(0.50f, 0.52f, 0.36f)
+        IconShapeId.DOG -> IconLogoSlot(0.50f, 0.58f, 0.40f)
+        IconShapeId.CAT -> IconLogoSlot(0.50f, 0.58f, 0.40f)
+        IconShapeId.TIE -> IconLogoSlot(0.50f, 0.48f, 0.34f)
+        IconShapeId.BOW_TIE -> IconLogoSlot(0.50f, 0.50f, 0.22f)
         else -> IconLogoSlot()
     }
 
     fun outline(shape: IconShapeId, width: Float, height: Float): List<Pair<Float, Float>> =
         when (shape) {
+            IconShapeId.HEXAGON -> roundedPolyline(hexPoints(width, height), min(width, height) * 0.07f)
+            IconShapeId.DIAMOND -> roundedPolyline(diamondPoints(width, height), min(width, height) * 0.06f)
             IconShapeId.STAR -> roundedPolyline(starPoints(width, height), min(width, height) * 0.035f)
             IconShapeId.TRIANGLE -> roundedPolyline(trianglePoints(width, height), min(width, height) * 0.07f)
-            IconShapeId.HEXAGON -> roundedPolyline(hexPoints(width, height), min(width, height) * 0.07f)
             IconShapeId.COMET -> cometOutline(width, height)
             IconShapeId.CRESCENT -> crescentOutline(width, height)
             IconShapeId.SUN -> sunOutline(width, height)
+            IconShapeId.MOUNTAIN -> roundedPolyline(mountainPoints(width, height), min(width, height) * 0.04f)
+            IconShapeId.PINE -> roundedPolyline(pinePoints(width, height), min(width, height) * 0.03f)
+            IconShapeId.DOG -> roundedPolyline(dogPoints(width, height), min(width, height) * 0.04f)
+            IconShapeId.CAT -> roundedPolyline(catPoints(width, height), min(width, height) * 0.04f)
+            IconShapeId.TIE -> roundedPolyline(tiePoints(width, height), min(width, height) * 0.04f)
+            IconShapeId.BOW_TIE -> roundedPolyline(bowTiePoints(width, height), min(width, height) * 0.035f)
             else -> emptyList()
         }
 
@@ -74,6 +85,99 @@ internal object IconShapeGeometry {
         w * 0.50f to h * 0.05f,
         w * 0.95f to h * 0.95f,
         w * 0.05f to h * 0.95f,
+    )
+
+    private fun diamondPoints(w: Float, h: Float): List<Pair<Float, Float>> = listOf(
+        w * 0.50f to h * 0.04f,
+        w * 0.96f to h * 0.50f,
+        w * 0.50f to h * 0.96f,
+        w * 0.04f to h * 0.50f,
+    )
+
+    /** One tall peak with a lower shoulder, flat along the bottom. */
+    private fun mountainPoints(w: Float, h: Float): List<Pair<Float, Float>> = listOf(
+        w * 0.02f to h * 0.92f,
+        w * 0.30f to h * 0.48f,
+        w * 0.50f to h * 0.06f,
+        w * 0.66f to h * 0.36f,
+        w * 0.82f to h * 0.22f,
+        w * 0.98f to h * 0.92f,
+    )
+
+    /** Stacked boughs and a short trunk. */
+    private fun pinePoints(w: Float, h: Float): List<Pair<Float, Float>> = listOf(
+        w * 0.50f to h * 0.03f,
+        w * 0.66f to h * 0.28f,
+        w * 0.58f to h * 0.28f,
+        w * 0.78f to h * 0.52f,
+        w * 0.64f to h * 0.52f,
+        w * 0.90f to h * 0.76f,
+        w * 0.58f to h * 0.76f,
+        w * 0.58f to h * 0.96f,
+        w * 0.42f to h * 0.96f,
+        w * 0.42f to h * 0.76f,
+        w * 0.10f to h * 0.76f,
+        w * 0.36f to h * 0.52f,
+        w * 0.22f to h * 0.52f,
+        w * 0.42f to h * 0.28f,
+        w * 0.34f to h * 0.28f,
+    )
+
+    /** Front-facing head: wide ears and a broad muzzle. */
+    private fun dogPoints(w: Float, h: Float): List<Pair<Float, Float>> = listOf(
+        w * 0.16f to h * 0.05f,
+        w * 0.06f to h * 0.34f,
+        w * 0.12f to h * 0.60f,
+        w * 0.28f to h * 0.84f,
+        w * 0.50f to h * 0.96f,
+        w * 0.72f to h * 0.84f,
+        w * 0.88f to h * 0.60f,
+        w * 0.94f to h * 0.34f,
+        w * 0.84f to h * 0.05f,
+        w * 0.68f to h * 0.30f,
+        w * 0.50f to h * 0.24f,
+        w * 0.32f to h * 0.30f,
+    )
+
+    /** Pointed ears and a narrower face than the dog. */
+    private fun catPoints(w: Float, h: Float): List<Pair<Float, Float>> = listOf(
+        w * 0.24f to h * 0.02f,
+        w * 0.08f to h * 0.36f,
+        w * 0.18f to h * 0.62f,
+        w * 0.36f to h * 0.88f,
+        w * 0.50f to h * 0.96f,
+        w * 0.64f to h * 0.88f,
+        w * 0.82f to h * 0.62f,
+        w * 0.92f to h * 0.36f,
+        w * 0.76f to h * 0.02f,
+        w * 0.62f to h * 0.32f,
+        w * 0.50f to h * 0.26f,
+        w * 0.38f to h * 0.32f,
+    )
+
+    /** Knot at the top, blade ending in a point. */
+    private fun tiePoints(w: Float, h: Float): List<Pair<Float, Float>> = listOf(
+        w * 0.30f to h * 0.03f,
+        w * 0.70f to h * 0.03f,
+        w * 0.80f to h * 0.20f,
+        w * 0.64f to h * 0.30f,
+        w * 0.50f to h * 0.97f,
+        w * 0.36f to h * 0.30f,
+        w * 0.20f to h * 0.20f,
+    )
+
+    /** Two wings and a center knot. */
+    private fun bowTiePoints(w: Float, h: Float): List<Pair<Float, Float>> = listOf(
+        w * 0.04f to h * 0.50f,
+        w * 0.36f to h * 0.16f,
+        w * 0.42f to h * 0.36f,
+        w * 0.58f to h * 0.36f,
+        w * 0.64f to h * 0.16f,
+        w * 0.96f to h * 0.50f,
+        w * 0.64f to h * 0.84f,
+        w * 0.58f to h * 0.64f,
+        w * 0.42f to h * 0.64f,
+        w * 0.36f to h * 0.84f,
     )
 
     /** Flat-top hex, sized to the width of the slot. */

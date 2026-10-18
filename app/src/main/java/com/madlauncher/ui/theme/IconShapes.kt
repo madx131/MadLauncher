@@ -34,18 +34,25 @@ object IconShapes {
 
     /** Star, moon, and the other playful masks reshape the fill and park the logo on [logoSlot]. */
     fun shapesFillOnly(shape: IconShapeId): Boolean = when (shape) {
+        IconShapeId.HEXAGON,
+        IconShapeId.DIAMOND,
         IconShapeId.STAR,
         IconShapeId.TRIANGLE,
-        IconShapeId.HEXAGON,
         IconShapeId.COMET,
         IconShapeId.CRESCENT,
-        IconShapeId.SUN -> true
+        IconShapeId.SUN,
+        IconShapeId.MOUNTAIN,
+        IconShapeId.PINE,
+        IconShapeId.DOG,
+        IconShapeId.CAT,
+        IconShapeId.TIE,
+        IconShapeId.BOW_TIE -> true
         else -> false
     }
 
     /**
-     * Shortcut Maker / system adaptive draw: one clip, background full-bleed,
-     * foreground on the 108dp layer (25% inset) so the glyph stays in the safe zone.
+     * Keep the icon the package manager already drew (Edge / BlueStacks silhouette).
+     * Do not force a rounded tile or a fill plate.
      */
     fun usesAdaptiveInset(shape: IconShapeId): Boolean = shape == IconShapeId.ADAPTIVE
 
@@ -60,13 +67,21 @@ object IconShapes {
         // Teardrop: three round corners + one sharp. Never use 50% on three corners —
         // that self-intersects and clips the icon to nothing.
         IconShapeId.TEARDROP -> TeardropShape
+        IconShapeId.HEXAGON -> HexagonShape
+        IconShapeId.DIAMOND -> DiamondShape
         IconShapeId.STAR -> StarShape
         IconShapeId.TRIANGLE -> TriangleShape
-        IconShapeId.HEXAGON -> HexagonShape
         IconShapeId.COMET -> CometShape
         IconShapeId.CRESCENT -> CrescentShape
         IconShapeId.SUN -> SunShape
-        IconShapeId.ADAPTIVE -> RoundedCornerShape(percent = 30)
+        IconShapeId.MOUNTAIN -> MountainShape
+        IconShapeId.PINE -> PineShape
+        IconShapeId.DOG -> DogShape
+        IconShapeId.CAT -> CatShape
+        IconShapeId.TIE -> TieShape
+        IconShapeId.BOW_TIE -> BowTieShape
+        // No MAD mask. Transparent pixels around the glyph stay transparent.
+        IconShapeId.ADAPTIVE -> RoundedCornerShape(0.dp)
     }
 }
 
@@ -98,12 +113,19 @@ private class OutlineShape(private val id: IconShapeId) : Shape {
     override fun hashCode(): Int = id.hashCode()
 }
 
+private val HexagonShape = OutlineShape(IconShapeId.HEXAGON)
+private val DiamondShape = OutlineShape(IconShapeId.DIAMOND)
 private val StarShape = OutlineShape(IconShapeId.STAR)
 private val TriangleShape = OutlineShape(IconShapeId.TRIANGLE)
-private val HexagonShape = OutlineShape(IconShapeId.HEXAGON)
 private val CometShape = OutlineShape(IconShapeId.COMET)
 private val CrescentShape = OutlineShape(IconShapeId.CRESCENT)
 private val SunShape = OutlineShape(IconShapeId.SUN)
+private val MountainShape = OutlineShape(IconShapeId.MOUNTAIN)
+private val PineShape = OutlineShape(IconShapeId.PINE)
+private val DogShape = OutlineShape(IconShapeId.DOG)
+private val CatShape = OutlineShape(IconShapeId.CAT)
+private val TieShape = OutlineShape(IconShapeId.TIE)
+private val BowTieShape = OutlineShape(IconShapeId.BOW_TIE)
 
 /** Bottom-start is the pointed/soft corner; other three are round (~38%). */
 private val TeardropShape = object : Shape {

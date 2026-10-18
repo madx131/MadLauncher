@@ -33,6 +33,7 @@ object LauncherWindowDismiss {
 
     fun keepsLauncherWindows(action: String, pkg: String = "", cls: String = ""): Boolean {
         if (action.startsWith("android.settings.")) return true
+        if (action == "android.speech.action.RECOGNIZE_SPEECH") return true
         if (action == "android.content.pm.action.REQUEST_PERMISSIONS") return true
         if (action == "android.app.role.action.REQUEST_ROLE") return true
         if (action.contains("REQUEST_ROLE", ignoreCase = true)) return true

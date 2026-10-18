@@ -81,6 +81,12 @@ object LanguageCodes {
 
     private val knownT: Set<String> = iso1ToT.values.toSet() + setOf("eng", "heb", "ind", "fil")
 
+    /** Packs shipped in the app. English is strings.xml, not a file. */
+    val shippedPacks: Set<String> = setOf("heb.json", "rus.json")
+
+    fun isShippedPack(fileName: String): Boolean =
+        migrateFileName(fileName) in shippedPacks || fileName.trim().lowercase(Locale.ROOT) in shippedPacks
+
     fun toIso6392t(code: String): String {
         val raw = code.trim().lowercase(Locale.ROOT).removeSuffix(".json")
         if (raw.isEmpty()) return raw
@@ -103,7 +109,8 @@ object LanguageCodes {
     fun overlayFileName(language: String): String? {
         val lang = language.trim().lowercase(Locale.ROOT)
         if (lang.isEmpty() || isEnglishCode(lang)) return null
-        return "${toIso6392t(lang)}.json"
+        val file = "${toIso6392t(lang)}.json"
+        return file.takeIf { it in shippedPacks }
     }
 
     /**

@@ -173,14 +173,16 @@ class MadApp : Application() {
         val overlay = com.madlauncher.data.LanguageCodes.migrateFileName(
             store.appearanceSettings.languageOverlay,
         )
-        val bundledHebrew = !store.languageUserPicked &&
-            overlay.isBlank() &&
-            com.madlauncher.data.SystemLanguagePack.fileNameFor(LanguageOverlay.systemLocale()) == "heb.json"
-        val appliedOverlay = if (bundledHebrew) "heb.json" else overlay
+        val systemPack = if (!store.languageUserPicked && overlay.isBlank()) {
+            com.madlauncher.data.SystemLanguagePack.fileNameFor(LanguageOverlay.systemLocale())
+        } else {
+            null
+        }
+        val appliedOverlay = systemPack ?: overlay
         if (appliedOverlay != store.appearanceSettings.languageOverlay) {
             store.appearanceSettings = store.appearanceSettings.copy(languageOverlay = appliedOverlay)
         }
-        if (appliedOverlay == "heb.json") {
+        if (appliedOverlay == "heb.json" || appliedOverlay == "rus.json") {
             LanguageOverlay.installBundledPack(this, appliedOverlay)
         }
         LanguageOverlay.load(this, appliedOverlay)

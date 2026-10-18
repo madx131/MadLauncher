@@ -10,12 +10,19 @@ import kotlin.math.sin
 
 class IconShapeGeometryTest {
     private val playful = listOf(
+        IconShapeId.HEXAGON,
+        IconShapeId.DIAMOND,
         IconShapeId.STAR,
         IconShapeId.TRIANGLE,
-        IconShapeId.HEXAGON,
         IconShapeId.COMET,
         IconShapeId.CRESCENT,
         IconShapeId.SUN,
+        IconShapeId.MOUNTAIN,
+        IconShapeId.PINE,
+        IconShapeId.DOG,
+        IconShapeId.CAT,
+        IconShapeId.TIE,
+        IconShapeId.BOW_TIE,
     )
 
     @Test
@@ -75,7 +82,7 @@ class IconShapeGeometryTest {
         }
         assertEquals(12f, MadTheme.cornerDpFor(IconShapeId.ROUNDED_SQUARE), 0.01f)
         assertEquals(999f, MadTheme.cornerDpFor(IconShapeId.CIRCLE), 0.01f)
-        assertEquals(22f, MadTheme.cornerDpFor(IconShapeId.ADAPTIVE), 0.01f)
+        assertEquals(0f, MadTheme.cornerDpFor(IconShapeId.ADAPTIVE), 0.01f)
         assertTrue(IconShapes.usesAdaptiveInset(IconShapeId.ADAPTIVE))
         assertFalse(IconShapes.usesAdaptiveInset(IconShapeId.SQUIRCLE))
     }

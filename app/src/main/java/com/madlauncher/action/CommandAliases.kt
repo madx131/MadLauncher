@@ -102,10 +102,8 @@ object CommandAliases {
                 return alias to target.toCommand("")
             }
             val sep = trimmed[alias.length]
-            // Space (`msg mom`) or plus (`msg+mom` from voice) separates the payload.
             if (sep.isWhitespace() || sep == '+') {
-                val payload = trimmed.substring(alias.length + 1).trim()
-                return alias to target.toCommand(payload)
+                return alias to target.toCommand(trimmed.substring(alias.length + 1).trim())
             }
         }
         return null

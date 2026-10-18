@@ -2,11 +2,11 @@ package com.madlauncher.ui
 
 import android.Manifest
 import android.app.Activity
-import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
-import android.speech.RecognizerIntent
-import java.util.Locale
+import android.speech.SpeechRecognizer
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.core.content.ContextCompat
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -55,6 +55,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -80,12 +81,14 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.madlauncher.LauncherWindowDismiss
 import com.madlauncher.R
 import com.madlauncher.action.ActionCommand
 import com.madlauncher.action.ActionAppKind
@@ -110,6 +113,8 @@ import androidx.compose.material.icons.outlined.PersonAdd
 import androidx.compose.material.icons.outlined.Map
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.Translate
+import com.madlauncher.data.ActionBoxButtonsId
+import com.madlauncher.data.ActionBoxFontId
 import com.madlauncher.data.ContactEntry
 import com.madlauncher.data.LaunchableApp
 import com.madlauncher.action.InstalledActionApp
@@ -230,23 +235,72 @@ fun ActionBox(
         if (vm.calcMode) keyboard?.hide()
     }
 
-    val fieldStyle = MaterialTheme.typography.bodyLarge.copy(color = accent)
-    val placeholderStyle = MaterialTheme.typography.bodyLarge.copy(color = accent.copy(alpha = 0.55f))
+    val pillLook = vm.displayAppearance
+    val fontScale = pillLook.actionBoxFontScale.coerceIn(0.75f, 1.5f)
+    val pillScale = pillLook.actionBoxPillScale.coerceIn(0.75f, 1.5f)
+    val pillFont = when (pillLook.actionBoxFont) {
+        ActionBoxFontId.SERIF -> FontFamily.Serif
+        ActionBoxFontId.MONO -> FontFamily.Monospace
+        ActionBoxFontId.DEFAULT -> FontFamily.Default
+    }
+    val fieldStyle = MaterialTheme.typography.bodyLarge.copy(
+        color = accent,
+        fontSize = (16f * fontScale).sp,
+        fontFamily = pillFont,
+    )
+    val placeholderStyle = fieldStyle.copy(color = accent.copy(alpha = 0.55f))
     val voicePrompt = stringResource(R.string.action_voice_input)
     val voiceMissing = stringResource(R.string.action_voice_unavailable)
-    val voiceLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        if (result.resultCode != Activity.RESULT_OK) return@rememberLauncherForActivityResult
-        val spoken = result.data
-            ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-            ?.firstOrNull()
-            ?.trim()
-            .orEmpty()
-        if (spoken.isNotEmpty()) vm.onQueryChange(spoken)
+    val voiceDenied = stringResource(R.string.action_voice_denied)
+    val voiceMissed = stringResource(R.string.action_voice_missed)
+    val voiceFailed = stringResource(R.string.action_voice_failed)
+    val showMicButton = pillLook.actionBoxShowMic
+    val showSettingsButton = pillLook.actionBoxShowSettings
+    var listening by remember { mutableStateOf(false) }
+    val speech = remember(context) { PillSpeechSession(context) }
+    val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            listening = true
+            speech.start()
+        } else {
+            listening = false
+            vm.showToast(voiceDenied)
+        }
+    }
+    speech.onPartial = { spoken ->
+        val normalized = com.madlauncher.action.VoiceCommandNormalizer.normalize(spoken)
+        if (normalized.isNotEmpty()) vm.onQueryChange(normalized)
+    }
+    speech.onFinal = { spoken ->
+        listening = false
+        val normalized = com.madlauncher.action.VoiceCommandNormalizer.normalize(spoken)
+        if (normalized.isNotEmpty()) {
+            vm.onQueryChange(normalized)
+            vm.runPrimaryAction()
+        }
+    }
+    speech.onStopped = { listening = false }
+    speech.onError = { code ->
+        listening = false
+        vm.showToast(
+            when (code) {
+                SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> voiceDenied
+                SpeechRecognizer.ERROR_NO_MATCH,
+                SpeechRecognizer.ERROR_SPEECH_TIMEOUT,
+                -> voiceMissed
+                SpeechRecognizer.ERROR_CLIENT -> voiceMissing
+                else -> voiceFailed
+            },
+        )
+    }
+    DisposableEffect(speech) {
+        onDispose { speech.stop() }
     }
     val fieldMinHeight = with(LocalDensity.current) {
         val line = fieldStyle.lineHeight.takeIf { it.isSp } ?: fieldStyle.fontSize * 1.25f
-        line.toDp() + 20.dp
+        line.toDp() + (20.dp * pillScale)
     }
+    val buttonPlacement = pillLook.actionBoxButtons
 
     Column(
         modifier = modifier
@@ -733,7 +787,59 @@ fun ActionBox(
                 .padding(horizontal = 10.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(leading, contentDescription = null, tint = accent, modifier = Modifier.size(20.dp))
+            val tools: @Composable (Boolean, Boolean) -> Unit = { mic, rest ->
+                if (rest && vm.actionQuery.isNotEmpty()) {
+                    IconButton(onClick = { vm.onQueryChange("") }, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Outlined.Close, contentDescription = stringResource(R.string.action_clear), tint = accent.copy(alpha = 0.7f), modifier = Modifier.size(16.dp))
+                    }
+                }
+                if (mic && showMicButton) {
+                    IconButton(
+                        onClick = {
+                            LauncherWindowDismiss.preserve(20_000L)
+                            if (listening) {
+                                speech.stop()
+                                listening = false
+                                return@IconButton
+                            }
+                            val allowed = ContextCompat.checkSelfPermission(
+                                context,
+                                Manifest.permission.RECORD_AUDIO,
+                            ) == PackageManager.PERMISSION_GRANTED
+                            if (allowed) {
+                                listening = true
+                                speech.start()
+                            } else {
+                                micPermission.launch(Manifest.permission.RECORD_AUDIO)
+                            }
+                        },
+                        modifier = Modifier.size(28.dp),
+                    ) {
+                        Icon(
+                            Icons.Outlined.Mic,
+                            contentDescription = voicePrompt,
+                            tint = if (listening) LocalMadTheme.current.colors.primary else accent,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                }
+                if (rest) {
+                    if (showSettingsButton) {
+                        IconButton(onClick = { vm.openActionBoxSettings() }, modifier = Modifier.size(28.dp)) {
+                            Icon(Icons.Outlined.Settings, contentDescription = stringResource(R.string.action_box_settings), tint = accent, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                    IconButton(onClick = { vm.closeActionBox() }, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Outlined.Close, contentDescription = stringResource(R.string.action_close), tint = accent.copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
+                    }
+                }
+            }
+            when (buttonPlacement) {
+                ActionBoxButtonsId.LEADING -> tools(true, true)
+                ActionBoxButtonsId.SPLIT -> tools(true, false)
+                ActionBoxButtonsId.TRAILING -> Unit
+            }
+            Icon(leading, contentDescription = null, tint = accent, modifier = Modifier.size((20f * pillScale).dp))
             Spacer(Modifier.width(8.dp))
             BasicTextField(
                 value = vm.actionQuery,
@@ -777,48 +883,10 @@ fun ActionBox(
                     }
                 },
             )
-            if (vm.actionQuery.isNotEmpty()) {
-                IconButton(onClick = { vm.onQueryChange("") }, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Outlined.Close, contentDescription = stringResource(R.string.action_clear), tint = accent.copy(alpha = 0.7f), modifier = Modifier.size(16.dp))
-                }
-            }
-            IconButton(
-                onClick = {
-                    val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                        putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
-                        putExtra(RecognizerIntent.EXTRA_PROMPT, voicePrompt)
-                    }
-                    val canHear = intent.resolveActivity(context.packageManager) != null
-                    if (!canHear) {
-                        vm.showToast(voiceMissing)
-                    } else {
-                        runCatching { voiceLauncher.launch(intent) }
-                            .onFailure { vm.showToast(voiceMissing) }
-                    }
-                },
-                modifier = Modifier.size(28.dp),
-            ) {
-                Icon(
-                    Icons.Outlined.Mic,
-                    contentDescription = voicePrompt,
-                    tint = accent,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-            IconButton(
-                onClick = { vm.openActionBoxSettings() },
-                modifier = Modifier.size(28.dp),
-            ) {
-                Icon(
-                    Icons.Outlined.Settings,
-                    contentDescription = stringResource(R.string.action_box_settings),
-                    tint = accent,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-            IconButton(onClick = { vm.closeActionBox() }, modifier = Modifier.size(28.dp)) {
-                Icon(Icons.Outlined.Close, contentDescription = stringResource(R.string.action_close), tint = accent.copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
+            when (buttonPlacement) {
+                ActionBoxButtonsId.TRAILING -> tools(true, true)
+                ActionBoxButtonsId.SPLIT -> tools(false, true)
+                ActionBoxButtonsId.LEADING -> Unit
             }
         }
         if (vm.calcMode) {

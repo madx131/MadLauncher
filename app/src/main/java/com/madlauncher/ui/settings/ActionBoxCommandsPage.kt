@@ -35,7 +35,6 @@ import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.Mic
-import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Slider
@@ -62,7 +61,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -74,6 +72,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.madlauncher.R
+import com.madlauncher.data.ActionBoxButtonsId
+import com.madlauncher.data.ActionBoxFontId
 import com.madlauncher.action.AppFuzzy
 import com.madlauncher.action.ActionAppKind
 import com.madlauncher.action.AliasTarget
@@ -87,9 +87,6 @@ import com.madlauncher.action.UserShortcutCombo
 import com.madlauncher.action.UserShortcutContact
 import com.madlauncher.action.UserShortcutKind
 import com.madlauncher.action.UserShortcuts
-import com.madlauncher.data.ActionBoxButtonsId
-import com.madlauncher.data.ActionBoxFontId
-import com.madlauncher.data.AppearanceSettings
 import com.madlauncher.data.CommandAppEditorRow
 import com.madlauncher.data.LaunchableApp
 import com.madlauncher.data.LauncherViewModel
@@ -119,10 +116,19 @@ fun ActionBoxCommandsPage(vm: LauncherViewModel) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
             .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        Text(stringResource(R.string.action_box_pill_preview), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+        ActionBoxPillPreview(vm)
+        Text(stringResource(R.string.action_box_pill_preview_hint), color = c.muted, fontSize = 12.sp)
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
         ActionBoxSearchSettings(vm)
         Text(
             stringResource(R.string.action_box_keys_legend),
@@ -155,7 +161,7 @@ fun ActionBoxCommandsPage(vm: LauncherViewModel) {
         CommandIndexRow(
             stringResource(R.string.action_box_kind_common_apps),
             stringResource(R.string.action_box_command_common_apps_sub),
-            token = "ig",
+            token = "x",
         ) {
             vm.openCommandEdit(CommandEditId.COMMON_APPS)
         }
@@ -305,6 +311,7 @@ fun ActionBoxCommandsPage(vm: LauncherViewModel) {
             ) {
                 vm.openAbout(SettingsRoute.ACTION_BOX_COMMANDS)
             }
+        }
         }
     }
         vm.pendingNewAppShortcut?.let { app ->
@@ -459,6 +466,83 @@ private fun NewAppShortcutDialog(vm: LauncherViewModel, app: LaunchableApp) {
     }
 }
 
+@Composable
+private fun PillChoice(label: String, on: Boolean, onClick: () -> Unit) {
+    val c = LocalMadTheme.current.colors
+    Text(
+        label,
+        color = if (on) c.fg else c.muted,
+        fontSize = 13.sp,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (on) c.primary.copy(alpha = 0.35f) else c.bg)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+    )
+}
+
+@Composable
+private fun ActionBoxPillPreview(vm: LauncherViewModel) {
+    val s = vm.appearanceDraft
+    val pill = s.actionBoxPillColor
+    val accent = s.actionBoxTextColor
+    val fontScale = s.actionBoxFontScale.coerceIn(0.75f, 1.5f)
+    val pillScale = s.actionBoxPillScale.coerceIn(0.75f, 1.5f)
+    val family = when (s.actionBoxFont) {
+        ActionBoxFontId.SERIF -> FontFamily.Serif
+        ActionBoxFontId.MONO -> FontFamily.Monospace
+        ActionBoxFontId.DEFAULT -> FontFamily.Default
+    }
+    val mic: @Composable () -> Unit = {
+        if (s.actionBoxShowMic) {
+            Icon(Icons.Outlined.Mic, contentDescription = null, tint = accent, modifier = Modifier.size(18.dp))
+        }
+    }
+    val rest: @Composable () -> Unit = {
+        if (s.actionBoxShowSettings) {
+            Icon(Icons.Outlined.Settings, contentDescription = null, tint = accent, modifier = Modifier.size(18.dp))
+        }
+        Icon(Icons.Outlined.Close, contentDescription = null, tint = accent.copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height((48f * pillScale).dp)
+            .clip(RoundedCornerShape(12.dp))
+            .border(1.5.dp, pill.copy(alpha = 0.85f), RoundedCornerShape(12.dp))
+            .background(pill.copy(alpha = 0.18f))
+            .padding(horizontal = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        when (s.actionBoxButtons) {
+            ActionBoxButtonsId.LEADING -> {
+                mic()
+                rest()
+            }
+            ActionBoxButtonsId.SPLIT -> mic()
+            ActionBoxButtonsId.TRAILING -> Unit
+        }
+        Text(
+            "msg+mom",
+            color = accent,
+            fontSize = (16f * fontScale).sp,
+            fontFamily = family,
+            maxLines = 1,
+            modifier = Modifier.weight(1f),
+        )
+        when (s.actionBoxButtons) {
+            ActionBoxButtonsId.TRAILING -> {
+                mic()
+                rest()
+            }
+            ActionBoxButtonsId.SPLIT -> rest()
+            ActionBoxButtonsId.LEADING -> Unit
+        }
+    }
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ActionBoxSearchSettings(vm: LauncherViewModel) {
@@ -475,14 +559,83 @@ private fun ActionBoxSearchSettings(vm: LauncherViewModel) {
             .padding(10.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(
-            stringResource(R.string.action_box_pill_preview),
-            color = c.fg,
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 14.sp,
+        Text(stringResource(R.string.action_box_pill_size), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+        Slider(
+            value = s.actionBoxPillScale,
+            onValueChange = { v -> vm.patchAppearanceDraft { it.copy(actionBoxPillScale = v) } },
+            valueRange = 0.75f..1.5f,
         )
-        ActionBoxPillPreview(s)
-        Text(stringResource(R.string.action_box_pill_preview_hint), color = c.muted, fontSize = 12.sp)
+        Text(stringResource(R.string.action_box_pill_font_size), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+        Slider(
+            value = s.actionBoxFontScale,
+            onValueChange = { v -> vm.patchAppearanceDraft { it.copy(actionBoxFontScale = v) } },
+            valueRange = 0.75f..1.5f,
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(stringResource(R.string.action_box_pill_font), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                PillChoice(
+                    label = stringResource(R.string.glance_font_default),
+                    on = s.actionBoxFont == ActionBoxFontId.DEFAULT,
+                ) { vm.patchAppearanceDraft { it.copy(actionBoxFont = ActionBoxFontId.DEFAULT) } }
+                PillChoice(
+                    label = stringResource(R.string.glance_font_serif),
+                    on = s.actionBoxFont == ActionBoxFontId.SERIF,
+                ) { vm.patchAppearanceDraft { it.copy(actionBoxFont = ActionBoxFontId.SERIF) } }
+                PillChoice(
+                    label = stringResource(R.string.glance_font_mono),
+                    on = s.actionBoxFont == ActionBoxFontId.MONO,
+                ) { vm.patchAppearanceDraft { it.copy(actionBoxFont = ActionBoxFontId.MONO) } }
+            }
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(stringResource(R.string.action_box_pill_buttons), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                PillChoice(
+                    label = stringResource(R.string.action_box_pill_buttons_trailing),
+                    on = s.actionBoxButtons == ActionBoxButtonsId.TRAILING,
+                ) { vm.patchAppearanceDraft { it.copy(actionBoxButtons = ActionBoxButtonsId.TRAILING) } }
+                PillChoice(
+                    label = stringResource(R.string.action_box_pill_buttons_leading),
+                    on = s.actionBoxButtons == ActionBoxButtonsId.LEADING,
+                ) { vm.patchAppearanceDraft { it.copy(actionBoxButtons = ActionBoxButtonsId.LEADING) } }
+                PillChoice(
+                    label = stringResource(R.string.action_box_pill_buttons_split),
+                    on = s.actionBoxButtons == ActionBoxButtonsId.SPLIT,
+                ) { vm.patchAppearanceDraft { it.copy(actionBoxButtons = ActionBoxButtonsId.SPLIT) } }
+            }
+        }
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                Text(
+                    stringResource(R.string.action_box_pill_show_mic),
+                    color = c.fg,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+                Text(stringResource(R.string.action_box_pill_show_mic_sub), color = c.muted, fontSize = 12.sp)
+            }
+            Switch(
+                checked = s.actionBoxShowMic,
+                onCheckedChange = { on -> vm.patchAppearanceDraft { it.copy(actionBoxShowMic = on) } },
+            )
+        }
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                Text(
+                    stringResource(R.string.action_box_pill_show_settings),
+                    color = c.fg,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+                Text(stringResource(R.string.action_box_pill_show_settings_sub), color = c.muted, fontSize = 12.sp)
+            }
+            Switch(
+                checked = s.actionBoxShowSettings,
+                onCheckedChange = { on -> vm.patchAppearanceDraft { it.copy(actionBoxShowSettings = on) } },
+            )
+        }
         Text(
             stringResource(R.string.action_box_pill_colors),
             color = c.fg,
@@ -500,38 +653,6 @@ private fun ActionBoxSearchSettings(vm: LauncherViewModel) {
             onPick = { argb -> vm.patchAppearanceDraft { it.copy(actionBoxTextArgb = argb) } },
             title = stringResource(R.string.action_box_text_color),
             subtitle = stringResource(R.string.action_box_text_color_sub),
-        )
-        Text(stringResource(R.string.action_box_pill_size), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-        Slider(
-            value = s.actionBoxPillScale,
-            onValueChange = { v -> vm.patchAppearanceDraft { it.copy(actionBoxPillScale = v.coerceIn(0.75f, 1.5f)) } },
-            valueRange = 0.75f..1.5f,
-        )
-        Text(stringResource(R.string.action_box_pill_font), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-        SettingsStyleRow(
-            options = listOf(
-                com.madlauncher.data.ActionBoxFontId.DEFAULT to R.string.glance_font_default,
-                com.madlauncher.data.ActionBoxFontId.SERIF to R.string.glance_font_serif,
-                com.madlauncher.data.ActionBoxFontId.MONO to R.string.glance_font_mono,
-            ),
-            selected = s.actionBoxFont,
-            onPick = { font -> vm.patchAppearanceDraft { it.copy(actionBoxFont = font) } },
-        )
-        Text(stringResource(R.string.action_box_pill_font_size), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-        Slider(
-            value = s.actionBoxFontScale,
-            onValueChange = { v -> vm.patchAppearanceDraft { it.copy(actionBoxFontScale = v.coerceIn(0.75f, 1.5f)) } },
-            valueRange = 0.75f..1.5f,
-        )
-        Text(stringResource(R.string.action_box_pill_buttons), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-        SettingsStyleRow(
-            options = listOf(
-                com.madlauncher.data.ActionBoxButtonsId.TRAILING to R.string.action_box_pill_buttons_trailing,
-                com.madlauncher.data.ActionBoxButtonsId.LEADING to R.string.action_box_pill_buttons_leading,
-                com.madlauncher.data.ActionBoxButtonsId.SPLIT to R.string.action_box_pill_buttons_split,
-            ),
-            selected = s.actionBoxButtons,
-            onPick = { place -> vm.patchAppearanceDraft { it.copy(actionBoxButtons = place) } },
         )
         Text(
             stringResource(R.string.action_box_search_engine),
@@ -643,70 +764,6 @@ private fun ActionBoxSearchSettings(vm: LauncherViewModel) {
                 checked = vm.useHelpWindow,
                 onCheckedChange = { vm.setExperimentalHelpWindow(it) },
             )
-        }
-    }
-}
-
-@Composable
-private fun ActionBoxPillPreview(s: AppearanceSettings) {
-    val pill = Color(s.actionBoxPillArgb)
-    val text = Color(s.actionBoxTextArgb)
-    val fontScale = s.actionBoxFontScale.coerceIn(0.75f, 1.5f)
-    val pillScale = s.actionBoxPillScale.coerceIn(0.75f, 1.5f)
-    val family = when (s.actionBoxFont) {
-        ActionBoxFontId.SERIF -> FontFamily.Serif
-        ActionBoxFontId.MONO -> FontFamily.Monospace
-        ActionBoxFontId.DEFAULT -> FontFamily.Default
-    }
-    val iconSize = (18f * pillScale).dp
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height((48f * pillScale).dp)
-            .clip(RoundedCornerShape(12.dp))
-            .border(1.5.dp, pill.copy(alpha = 0.85f), RoundedCornerShape(12.dp))
-            .background(pill.copy(alpha = 0.18f))
-            .padding(horizontal = (10f * pillScale).dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        val mic = @Composable {
-            Icon(Icons.Outlined.Mic, contentDescription = null, tint = text, modifier = Modifier.size(iconSize))
-        }
-        val settings = @Composable {
-            Icon(Icons.Outlined.Settings, contentDescription = null, tint = text, modifier = Modifier.size(iconSize))
-        }
-        val close = @Composable {
-            Icon(Icons.Outlined.Close, contentDescription = null, tint = text.copy(alpha = 0.7f), modifier = Modifier.size(iconSize))
-        }
-        when (s.actionBoxButtons) {
-            ActionBoxButtonsId.LEADING -> {
-                settings(); close(); mic()
-            }
-            ActionBoxButtonsId.SPLIT -> mic()
-            ActionBoxButtonsId.TRAILING -> {
-                Icon(Icons.Outlined.Search, contentDescription = null, tint = text, modifier = Modifier.size(iconSize))
-            }
-        }
-        if (s.actionBoxButtons != ActionBoxButtonsId.TRAILING) {
-            Icon(Icons.Outlined.Search, contentDescription = null, tint = text, modifier = Modifier.size(iconSize))
-        }
-        Text(
-            "msg+mom",
-            color = text,
-            fontSize = (16f * fontScale).sp,
-            fontFamily = family,
-            maxLines = 1,
-            modifier = Modifier.weight(1f),
-        )
-        when (s.actionBoxButtons) {
-            ActionBoxButtonsId.TRAILING -> {
-                mic(); settings(); close()
-            }
-            ActionBoxButtonsId.SPLIT -> {
-                settings(); close()
-            }
-            ActionBoxButtonsId.LEADING -> Unit
         }
     }
 }
