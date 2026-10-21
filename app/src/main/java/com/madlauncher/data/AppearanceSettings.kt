@@ -17,17 +17,6 @@ enum class IconShapeId {
     TEARDROP,
     HEXAGON,
     DIAMOND,
-    STAR,
-    TRIANGLE,
-    COMET,
-    CRESCENT,
-    SUN,
-    MOUNTAIN,
-    PINE,
-    DOG,
-    CAT,
-    TIE,
-    BOW_TIE,
     /** Each app’s own silhouette. No MAD rounded tile. */
     ADAPTIVE,
 }
@@ -146,6 +135,8 @@ data class AppearanceSettings(
     val blurEnabled: Boolean = false,
     val blurAllScreens: Boolean = false,
     val iconShape: IconShapeId = IconShapeId.ROUNDED_SQUARE,
+    /** Installed MAD icon style (`filesDir/icon-styles/{id}`). Blank uses [iconShape]. */
+    val iconStyleId: String = "",
     val iconPackPackage: String = "",
     val fontPath: String = "",
     val pageEffect: PageEffectId = PageEffectId.SLIDE,
@@ -167,6 +158,10 @@ data class AppearanceSettings(
     val showDockActionBox: Boolean = true,
     val dockHeightDp: Float = 68f,
     val dockIconSizeDp: Float = 50f,
+    /** When true, the Icons size slider also sizes docks that follow it. */
+    val syncDockIcons: Boolean = false,
+    /** Bottom dock follows [homeIconSizeDp] while [syncDockIcons] is on. */
+    val dockFollowsIconSize: Boolean = true,
     val homeIconSizeDp: Float = 56f,
     /** Caption under home, dock, drawer, and folder icons. */
     val iconLabelSizeSp: Float = 11f,
@@ -302,6 +297,7 @@ data class AppearanceSettings(
                 blurEnabled = o.optBoolean("blurEnabled", false),
                 blurAllScreens = o.optBoolean("blurAllScreens", false),
                 iconShape = enumOr(o.optString("iconShape"), IconShapeId.ROUNDED_SQUARE),
+                iconStyleId = o.optString("iconStyleId", ""),
                 iconPackPackage = o.optString("iconPackPackage", ""),
                 fontPath = o.optString("fontPath", ""),
                 pageEffect = enumOr(o.optString("pageEffect"), PageEffectId.SLIDE),
@@ -318,6 +314,8 @@ data class AppearanceSettings(
                 showDockActionBox = o.optBoolean("showDockActionBox", true),
                 dockHeightDp = o.optDouble("dockHeightDp", 68.0).toFloat(),
                 dockIconSizeDp = o.optDouble("dockIconSizeDp", 50.0).toFloat(),
+                syncDockIcons = o.optBoolean("syncDockIcons", false),
+                dockFollowsIconSize = o.optBoolean("dockFollowsIconSize", true),
                 homeIconSizeDp = o.optDouble("homeIconSizeDp", 56.0).toFloat(),
                 iconLabelSizeSp = o.optDouble("iconLabelSizeSp", 11.0).toFloat(),
                 dockAutoHide = enumOr(o.optString("dockAutoHide"), DockAutoHide.REGULAR).forUi(),
@@ -444,6 +442,7 @@ data class AppearanceSettings(
             .put("blurEnabled", blurEnabled)
             .put("blurAllScreens", blurAllScreens)
             .put("iconShape", iconShape.name)
+            .put("iconStyleId", iconStyleId)
             .put("iconPackPackage", iconPackPackage)
             .put("fontPath", fontPath)
             .put("pageEffect", pageEffect.name)
@@ -458,6 +457,8 @@ data class AppearanceSettings(
             .put("showDockActionBox", showDockActionBox)
             .put("dockHeightDp", dockHeightDp.toDouble())
             .put("dockIconSizeDp", dockIconSizeDp.toDouble())
+            .put("syncDockIcons", syncDockIcons)
+            .put("dockFollowsIconSize", dockFollowsIconSize)
             .put("homeIconSizeDp", homeIconSizeDp.toDouble())
             .put("iconLabelSizeSp", iconLabelSizeSp.toDouble())
             .put("dockAutoHide", dockAutoHide.forUi().name)

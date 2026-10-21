@@ -9,26 +9,15 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 class IconShapeGeometryTest {
-    private val playful = listOf(
+    private val fillOnly = listOf(
         IconShapeId.HEXAGON,
         IconShapeId.DIAMOND,
-        IconShapeId.STAR,
-        IconShapeId.TRIANGLE,
-        IconShapeId.COMET,
-        IconShapeId.CRESCENT,
-        IconShapeId.SUN,
-        IconShapeId.MOUNTAIN,
-        IconShapeId.PINE,
-        IconShapeId.DOG,
-        IconShapeId.CAT,
-        IconShapeId.TIE,
-        IconShapeId.BOW_TIE,
     )
 
     @Test
-    fun playfulMasksStayInsideTheSlot() {
+    fun fillOnlyMasksStayInsideTheSlot() {
         val size = 200f
-        for (shape in playful) {
+        for (shape in fillOnly) {
             val poly = IconShapeGeometry.outline(shape, size, size)
             assertTrue("${shape.name} outline", poly.size >= 8)
             for ((x, y) in poly) {
@@ -46,25 +35,14 @@ class IconShapeGeometryTest {
     }
 
     @Test
-    fun starPointsUpTrianglePointsUpHexIsWide() {
+    fun hexagonIsWideAndDiamondContainsItsCenter() {
         val size = 100f
-        val star = IconShapeGeometry.outline(IconShapeId.STAR, size, size)
-        val top = star.minBy { it.second }
-        assertTrue(top.first in 40f..60f)
-        assertTrue(top.second < 8f)
-        val tri = IconShapeGeometry.outline(IconShapeId.TRIANGLE, size, size)
-        val triTop = tri.minBy { it.second }
-        assertTrue(triTop.first in 40f..60f)
         val hex = IconShapeGeometry.outline(IconShapeId.HEXAGON, size, size)
         val minX = hex.minOf { it.first }
         val maxX = hex.maxOf { it.first }
         assertTrue(maxX - minX > 80f)
-        val sun = IconShapeGeometry.outline(IconShapeId.SUN, size, size)
-        val sunTop = sun.minBy { it.second }
-        assertTrue(sunTop.first in 40f..60f)
-        assertTrue(sunTop.second < 8f)
-        assertTrue(IconShapeGeometry.contains(IconShapeId.SUN, size, size, 50f, 12f))
-        assertFalse(IconShapeGeometry.contains(IconShapeId.SUN, size, size, 70f, 18f))
+        assertTrue(IconShapeGeometry.contains(IconShapeId.DIAMOND, size, size, 50f, 50f))
+        assertFalse(IconShapeGeometry.contains(IconShapeId.DIAMOND, size, size, 1f, 1f))
     }
 
     @Test
@@ -90,7 +68,7 @@ class IconShapeGeometryTest {
     @Test
     fun logoCenterSitsInTheBody() {
         val size = 200f
-        for (shape in playful) {
+        for (shape in fillOnly) {
             val slot = IconShapeGeometry.logoSlot(shape)
             val cx = slot.centerX * size
             val cy = slot.centerY * size
@@ -98,7 +76,6 @@ class IconShapeGeometryTest {
                 "${shape.name} center",
                 IconShapeGeometry.contains(shape, size, size, cx, cy),
             )
-            // Adaptive glyphs occupy the center ~66% of the scaled foreground layer.
             val radius = slot.scale * 0.66f * 0.5f * size * 0.72f
             for (k in 0 until 8) {
                 val a = k * Math.PI / 4.0
@@ -131,11 +108,10 @@ class IconShapeGeometryTest {
     }
 
     @Test
-    fun playfulShapeNamesRoundTrip() {
-        for (shape in playful) {
+    fun fillOnlyShapeNamesRoundTrip() {
+        for (shape in fillOnly) {
             assertEquals(shape, enumValueOf<IconShapeId>(shape.name))
             assertEquals(0f, MadTheme.cornerDpFor(shape), 0.01f)
         }
     }
-
 }

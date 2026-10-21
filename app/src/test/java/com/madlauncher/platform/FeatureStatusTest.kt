@@ -14,7 +14,7 @@ class FeatureStatusTest {
         assertTrue(FeatureStatus.UNAVAILABLE.isIssue)
         assertTrue(FeatureStatus.DEGRADED.isIssue)
         assertEquals("Not installed", PlatformHelp.statusLabel(FeatureStatus.NOT_INSTALLED))
-        assertEquals("Not working", PlatformHelp.statusLabel(FeatureStatus.UNAVAILABLE))
+        assertEquals("Limitation", PlatformHelp.statusLabel(FeatureStatus.UNAVAILABLE))
     }
 
     @Test

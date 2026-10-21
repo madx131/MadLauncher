@@ -17,6 +17,15 @@ class AppearanceContractsTest {
     @Test
     fun defaultAppearanceUsesRoundedSquare() {
         assertEquals(IconShapeId.ROUNDED_SQUARE, AppearanceSettings().iconShape)
+        assertEquals("", AppearanceSettings().iconStyleId)
+    }
+
+    @Test
+    fun removedPlayfulShapeFallsBackToRoundedSquare() {
+        val shape = runCatching { enumValueOf<IconShapeId>("STAR") }
+            .getOrDefault(IconShapeId.ROUNDED_SQUARE)
+        assertEquals(IconShapeId.ROUNDED_SQUARE, shape)
+        assertEquals("", AppearanceSettings().iconStyleId)
     }
 
     @Test

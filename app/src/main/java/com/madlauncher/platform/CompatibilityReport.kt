@@ -62,7 +62,7 @@ data class CompatibilityReport(
             appendLine(actionBoxCatalog.trim())
         }
         appendLine()
-        appendLine("=== Not working / limited on this device ===")
+        appendLine("=== Current software limitations ===")
         appendLine(limitedSummary)
         if (userNotes.isNotBlank()) {
             appendLine()

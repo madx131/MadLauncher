@@ -32,23 +32,15 @@ data class IconLogoSlot(
 object IconShapes {
     fun logoSlot(shape: IconShapeId): IconLogoSlot = IconShapeGeometry.logoSlot(shape)
 
-    /** Star, moon, and the other playful masks reshape the fill and park the logo on [logoSlot]. */
+    /** Hexagon and diamond reshape the fill and park the logo on [logoSlot]. */
     fun shapesFillOnly(shape: IconShapeId): Boolean = when (shape) {
         IconShapeId.HEXAGON,
-        IconShapeId.DIAMOND,
-        IconShapeId.STAR,
-        IconShapeId.TRIANGLE,
-        IconShapeId.COMET,
-        IconShapeId.CRESCENT,
-        IconShapeId.SUN,
-        IconShapeId.MOUNTAIN,
-        IconShapeId.PINE,
-        IconShapeId.DOG,
-        IconShapeId.CAT,
-        IconShapeId.TIE,
-        IconShapeId.BOW_TIE -> true
+        IconShapeId.DIAMOND -> true
         else -> false
     }
+
+    /** Closed polyline in 0–1, scaled to the icon slot. Used by an installed icon style mask. */
+    fun normalized(points: List<Pair<Float, Float>>): Shape = NormalizedPolylineShape(points)
 
     /**
      * Keep the icon the package manager already drew (Edge / BlueStacks silhouette).
@@ -69,19 +61,6 @@ object IconShapes {
         IconShapeId.TEARDROP -> TeardropShape
         IconShapeId.HEXAGON -> HexagonShape
         IconShapeId.DIAMOND -> DiamondShape
-        IconShapeId.STAR -> StarShape
-        IconShapeId.TRIANGLE -> TriangleShape
-        IconShapeId.COMET -> CometShape
-        IconShapeId.CRESCENT -> CrescentShape
-        IconShapeId.SUN -> SunShape
-        IconShapeId.MOUNTAIN -> MountainShape
-        IconShapeId.PINE -> PineShape
-        IconShapeId.DOG -> DogShape
-        IconShapeId.CAT -> CatShape
-        IconShapeId.TIE -> TieShape
-        IconShapeId.BOW_TIE -> BowTieShape
-        // No MAD mask. Transparent pixels around the glyph stay transparent.
-        IconShapeId.ADAPTIVE -> RoundedCornerShape(0.dp)
     }
 }
 
@@ -115,17 +94,38 @@ private class OutlineShape(private val id: IconShapeId) : Shape {
 
 private val HexagonShape = OutlineShape(IconShapeId.HEXAGON)
 private val DiamondShape = OutlineShape(IconShapeId.DIAMOND)
-private val StarShape = OutlineShape(IconShapeId.STAR)
-private val TriangleShape = OutlineShape(IconShapeId.TRIANGLE)
-private val CometShape = OutlineShape(IconShapeId.COMET)
-private val CrescentShape = OutlineShape(IconShapeId.CRESCENT)
-private val SunShape = OutlineShape(IconShapeId.SUN)
-private val MountainShape = OutlineShape(IconShapeId.MOUNTAIN)
-private val PineShape = OutlineShape(IconShapeId.PINE)
-private val DogShape = OutlineShape(IconShapeId.DOG)
-private val CatShape = OutlineShape(IconShapeId.CAT)
-private val TieShape = OutlineShape(IconShapeId.TIE)
-private val BowTieShape = OutlineShape(IconShapeId.BOW_TIE)
+
+/** Points are fractions of the slot (0–1, y grows downward). */
+private class NormalizedPolylineShape(
+    private val points: List<Pair<Float, Float>>,
+) : Shape {
+    override fun createOutline(
+        size: Size,
+        layoutDirection: LayoutDirection,
+        density: Density,
+    ): Outline {
+        val path = Path()
+        if (points.size < 3) {
+            path.moveTo(0f, 0f)
+            path.lineTo(size.width, 0f)
+            path.lineTo(size.width, size.height)
+            path.lineTo(0f, size.height)
+            path.close()
+        } else {
+            path.moveTo(points[0].first * size.width, points[0].second * size.height)
+            for (i in 1 until points.size) {
+                path.lineTo(points[i].first * size.width, points[i].second * size.height)
+            }
+            path.close()
+        }
+        return Outline.Generic(path)
+    }
+
+    override fun equals(other: Any?): Boolean =
+        other is NormalizedPolylineShape && other.points == points
+
+    override fun hashCode(): Int = points.hashCode()
+}
 
 /** Bottom-start is the pointed/soft corner; other three are round (~38%). */
 private val TeardropShape = object : Shape {

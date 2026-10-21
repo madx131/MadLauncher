@@ -17,6 +17,7 @@ import com.madlauncher.action.IntentExecutor
 import com.madlauncher.data.ContactsRepository
 import com.madlauncher.data.InstalledAppsRepository
 import com.madlauncher.data.LanguageOverlay
+import com.madlauncher.data.IconStyleStore
 import com.madlauncher.data.LocalStore
 import com.madlauncher.data.MadShadeWindows
 import com.madlauncher.data.SettingsExternalBackup
@@ -151,6 +152,7 @@ class MadApp : Application() {
         UserShortcuts.replace(store.userShortcuts)
         if (BuildConfig.ACTION_BOX_APP) {
             LanguageOverlay.applySystemLanguage(this)
+            IconStyleStore.activate(this, store.appearanceSettings.iconStyleId)
             kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
                 val fileName = com.madlauncher.data.SystemLanguagePack.fileNameFor(
                     LanguageOverlay.systemLocale(),
@@ -186,6 +188,7 @@ class MadApp : Application() {
             LanguageOverlay.installBundledPack(this, appliedOverlay)
         }
         LanguageOverlay.load(this, appliedOverlay)
+        IconStyleStore.activate(this, store.appearanceSettings.iconStyleId)
         val live = store.appearanceSettings
         NavShortcutBridge.update(live)
         AppearanceBridge.update(live)

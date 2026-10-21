@@ -84,6 +84,9 @@
         <intent>
             <action android:name="android.speech.RecognitionService" />
         </intent>
+        <intent>
+            <action android:name="com.madlauncher.action.INSTALL_ICON_STYLE" />
+        </intent>
     </queries>
 
     <application
@@ -147,6 +150,17 @@
                 <action android:name="android.intent.action.ATTACH_DATA" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="image/*" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".IconStyleInstallActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="com.madlauncher.action.INSTALL_ICON_STYLE" />
+                <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
 

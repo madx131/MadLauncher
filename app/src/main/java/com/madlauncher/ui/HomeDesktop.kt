@@ -86,6 +86,7 @@ import com.madlauncher.data.EdgeSide
 import com.madlauncher.data.HomeItem
 import com.madlauncher.data.HomeLayout
 import com.madlauncher.data.HomePageKind
+import com.madlauncher.data.IconStyleStore
 import com.madlauncher.data.LaunchableApp
 import com.madlauncher.data.LauncherViewModel
 import com.madlauncher.data.PageEffectId
@@ -771,10 +772,29 @@ fun emptyPageIconSize(sliderDp: Float, cellW: Dp, cellH: Dp): Dp {
  */
 fun iconLabelSize(sp: Float): androidx.compose.ui.unit.TextUnit = sp.coerceIn(9f, 16f).sp
 
-/** Largest dock icon that still leaves the label visible under it. */
+/** Label line, the gap under the icon, and a fixed inset the text cannot cross. */
+fun dockLabelBandDp(labelSp: Float): Float {
+    val line = labelSp.coerceIn(9f, 16f)
+    return line + 8f
+}
+
 fun maxDockIconDp(dockHeightDp: Float, labelSp: Float): Float {
-    val text = labelSp.coerceIn(9f, 16f) * 1.35f
-    return (dockHeightDp - text - 6f).coerceIn(33f, 72f)
+    return (dockHeightDp - dockLabelBandDp(labelSp)).coerceIn(32f, 88f)
+}
+
+/** Dock height that fits [iconDp] plus the label and the same inset. */
+fun dockHeightForSyncedIcon(iconDp: Float, labelSp: Float): Float {
+    return (iconDp.coerceIn(32f, 88f) + dockLabelBandDp(labelSp)).coerceIn(56f, 148f)
+}
+
+/** Edge-strip thickness that fits [iconDp], its ring, and a fixed inset. */
+fun edgeThicknessForSyncedIcon(iconDp: Float): Float {
+    return (iconDp.coerceIn(32f, 88f) + 32f).coerceIn(48f, 160f)
+}
+
+fun edgeIconDp(iconDp: Float, thicknessDp: Float): Float {
+    val cap = (thicknessDp - 32f).coerceAtLeast(24f)
+    return iconDp.coerceIn(24f, 88f).coerceAtMost(cap)
 }
 
 fun iconSizeForCell(sliderDp: Float, cellW: Dp, @Suppress("UNUSED_PARAMETER") cellH: Dp): Dp {
@@ -1538,37 +1558,41 @@ fun DesktopIcon(
     rotateUpright: Boolean = true,
 ) {
     val theme = LocalMadTheme.current
-    val shapeId = theme.iconShape
-    val shape = MadTheme.iconClip(shapeId, theme.iconCornerDp)
     val density = LocalDensity.current
     val custom = vm.customIconPath(app.packageName)
     val file = custom?.let { File(it) }
+    val userMask = rememberIconMask(styleArt = false)
     Box(modifier = Modifier.size(size).then(if (rotateUpright) Modifier.keepUpright() else Modifier)) {
         if (file != null && file.exists()) {
             val bgAlpha = theme.iconBgAlpha
-            val fillOnly = IconShapes.shapesFillOnly(shapeId)
-            val silhouette = IconShapes.usesAdaptiveInset(shapeId)
-            val bmp = remember(custom, shapeId, theme.iconCornerDp, bgAlpha) {
+            val bmp = remember(custom, userMask.key, bgAlpha) {
                 val raw = android.graphics.BitmapFactory.decodeFile(custom) ?: return@remember null
-                if (fillOnly) maskIconFill(raw, shape, density, bgAlpha, IconShapes.logoSlot(shapeId)) else raw
+                if (userMask.fillOnly) {
+                    maskIconFill(raw, userMask.shape, density, bgAlpha, userMask.logoSlot)
+                } else {
+                    raw
+                }
             }
             if (bmp != null) {
                 androidx.compose.foundation.Image(
                     bitmap = bmp.asImageBitmap(),
                     contentDescription = app.label,
-                    contentScale = if (silhouette) {
+                    contentScale = if (userMask.adaptiveInset) {
                         androidx.compose.ui.layout.ContentScale.Fit
                     } else {
                         androidx.compose.ui.layout.ContentScale.Crop
                     },
-                    modifier = Modifier.fillMaxSize().then(if (silhouette) Modifier else Modifier.clip(shape)),
+                    modifier = Modifier.fillMaxSize().then(
+                        if (userMask.adaptiveInset) Modifier else Modifier.clip(userMask.shape),
+                    ),
                 )
             } else {
                 AppIcon(null, app.label, size = size)
             }
         } else {
-            val packIcon = remember(app.id, vm.displayAppearance.iconPackPackage, shapeId) {
-                vm.resolvePackIcon(app.packageName, app.activityName)
+            val hasStyleArt = IconStyleStore.iconPath(app.packageName, app.activityName) != null
+            val packIcon = remember(app.id, vm.displayAppearance.iconPackPackage, hasStyleArt, userMask.key) {
+                if (hasStyleArt) null else vm.resolvePackIcon(app.packageName, app.activityName)
             }
             AppIcon(
                 packIcon ?: app.icon,

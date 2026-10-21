@@ -12,8 +12,8 @@ android {
         applicationId = "com.madlauncher"
         minSdk = 26
         targetSdk = 35
-        versionCode = 324
-        versionName = "0.9.126.6"
+        versionCode = 328
+        versionName = "0.9.131.2"
         val publicApk = (findProperty("MAD_PUBLIC_APK") as? String)?.equals("true", ignoreCase = true) == true
         val repoToken = if (publicApk) {
             ""
@@ -117,12 +117,14 @@ tasks.register<Copy>("syncLangPacks") {
     val dest = file("src/main/assets/lang")
     doFirst {
         dest.listFiles()?.forEach { packed ->
-            val keep = packed.name == "heb.json" || packed.name == "rus.json" || packed.name == "README.txt"
+            val keep = packed.name == "heb.json" || packed.name == "rus.json" ||
+                packed.name == "heb.commands.json" || packed.name == "rus.commands.json" ||
+                packed.name == "README.txt"
             if (!keep) packed.delete()
         }
     }
     from(rootProject.file("Lang")) {
-        include("heb.json", "rus.json", "README.txt")
+        include("heb.json", "rus.json", "heb.commands.json", "rus.commands.json", "README.txt")
         exclude("eng.json", "en.json", "download-ids.json")
     }
     into(dest)

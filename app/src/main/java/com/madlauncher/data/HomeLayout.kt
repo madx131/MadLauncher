@@ -93,6 +93,8 @@ data class EdgePanel(
     val thicknessDp: Float = 72f,
     val iconSizeDp: Float = 40f,
     val autoHide: DockAutoHide = DockAutoHide.REGULAR,
+    /** When the Icons size sync is on, this dock uses that size and grows to fit it. */
+    val followIconSize: Boolean = true,
     /** Left/right only: keep this dock (or its pull bar) over other apps. */
     val showOverApps: Boolean = false,
 )

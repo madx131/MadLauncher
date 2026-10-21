@@ -39,7 +39,7 @@ object PlatformHelp {
     fun statusLabel(status: FeatureStatus): String = when (status) {
         FeatureStatus.WORKING -> "Working"
         FeatureStatus.DEGRADED -> "Limited"
-        FeatureStatus.UNAVAILABLE -> "Not working"
+        FeatureStatus.UNAVAILABLE -> "Limitation"
         FeatureStatus.UNKNOWN -> "Needs setup"
         FeatureStatus.NOT_INSTALLED -> "Not installed"
     }
@@ -85,7 +85,7 @@ object PlatformHelp {
                 "Messenger, Telegram, Signal, Instagram, Discord, and similar apps have no reliable public call API on Android. " +
                     "MAD only supports Phone and WhatsApp for # and *. Open those apps directly to call there."
             PlatformFeature.ACTIONBOX_SOCIAL_POST ->
-                "Space posts into social apps do not open inside those apps. They are listed under Not working. Chats that already open in the app stay there until you turn that app on under Open in browser."
+                "Space posts into social apps do not open inside those apps. They are listed under Current software limitations. Chats that already open in the app stay there until you turn that app on under Open in browser."
             PlatformFeature.ACTIONBOX_SOCIAL_DM -> when (status) {
                 FeatureStatus.DEGRADED ->
                     "Opening messages inside those apps still does not work. Apps turned on under Experimental → Open in browser use the website, and they share one browser tab."

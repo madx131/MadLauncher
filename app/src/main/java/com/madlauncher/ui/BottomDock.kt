@@ -42,7 +42,10 @@ import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -62,7 +65,7 @@ fun BottomDock(vm: LauncherViewModel) {
     val pill = vm.displayAppearance.actionBoxPillColor
     val s = vm.displayAppearance
     val collapsed = s.dockAutoHide.isAutoHide && !vm.dockRevealed
-    val rowHeight = s.dockHeightDp.dp.coerceIn(48.dp, 120.dp)
+    val rowHeight = s.dockHeightDp.dp.coerceIn(48.dp, 148.dp)
     val secondRow = s.dockSecondRow
     val expanded = secondRow && vm.dockSecondRowExpanded
     val dockPad = 14.dp
@@ -242,11 +245,11 @@ private fun SpecialDockIcon(
     }
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = holdModifier,
+        modifier = holdModifier.fillMaxWidth(),
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.keepUpright(),
+            modifier = Modifier.keepUpright().fillMaxWidth().padding(bottom = 2.dp),
         ) {
             Box(
                 modifier = Modifier.size(iconSize),
@@ -255,7 +258,7 @@ private fun SpecialDockIcon(
                 Icon(icon, contentDescription = label, tint = color, modifier = Modifier.size(iconSize * 0.72f))
             }
             Spacer(Modifier.height(4.dp))
-            Text(label, color = muted, fontSize = iconLabelSize(vm.displayAppearance.iconLabelSizeSp), letterSpacing = 0.2.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            DockLabel(label, muted, vm.displayAppearance.iconLabelSizeSp)
         }
     }
 }
@@ -265,19 +268,21 @@ private fun AppDockIcon(vm: LauncherViewModel, index: Int, app: LaunchableApp, c
     var coords by remember { mutableStateOf<LayoutCoordinates?>(null) }
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.appLongPress(
-            key = app.id + index,
-            coordinates = coords,
-            onPositioned = { coords = it },
-            onTap = { vm.activateDockSlot(index) },
-            onHoldStart = { vm.beginAppHold(app, "dock", dockIndex = index) },
-            onMove = { x, y, moved -> vm.updateHoldPointer(x, y, moved) },
-            onHoldEnd = { vm.endAppHold() },
-        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .appLongPress(
+                key = app.id + index,
+                coordinates = coords,
+                onPositioned = { coords = it },
+                onTap = { vm.activateDockSlot(index) },
+                onHoldStart = { vm.beginAppHold(app, "dock", dockIndex = index) },
+                onMove = { x, y, moved -> vm.updateHoldPointer(x, y, moved) },
+                onHoldEnd = { vm.endAppHold() },
+            ),
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.keepUpright(),
+            modifier = Modifier.keepUpright().fillMaxWidth().padding(bottom = 2.dp),
         ) {
             Box(
                 modifier = Modifier.size(iconSize),
@@ -286,24 +291,37 @@ private fun AppDockIcon(vm: LauncherViewModel, index: Int, app: LaunchableApp, c
                 DesktopIcon(vm, app, iconSize, rotateUpright = false)
             }
             Spacer(Modifier.height(4.dp))
-            Text(
-                app.label,
-                color = c.muted,
-                fontSize = iconLabelSize(vm.displayAppearance.iconLabelSizeSp),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            DockLabel(app.label, c.muted, vm.displayAppearance.iconLabelSizeSp)
         }
     }
 }
 
 @Composable
 private fun EmptyDockSlot(c: MadColors, iconSize: Dp, labelSp: Float) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp)) {
         Box(modifier = Modifier.size(iconSize))
         Spacer(Modifier.height(4.dp))
-        Text(" ", color = c.muted, fontSize = iconLabelSize(labelSp))
+        DockLabel(" ", c.muted, labelSp)
     }
+}
+
+@Composable
+private fun DockLabel(text: String, color: Color, labelSp: Float) {
+    val size = iconLabelSize(labelSp)
+    Text(
+        text,
+        color = color,
+        fontSize = size,
+        lineHeight = size,
+        maxLines = 1,
+        softWrap = false,
+        overflow = TextOverflow.Ellipsis,
+        textAlign = TextAlign.Center,
+        style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = false)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp),
+    )
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -312,7 +330,9 @@ private fun ActionsPill(vm: LauncherViewModel, index: Int, c: MadColors, text: C
     val actionsLabel = stringResource(R.string.dock_actions)
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.combinedClickable(
+        modifier = Modifier
+            .padding(bottom = 2.dp)
+            .combinedClickable(
             onClick = { if (!vm.homeEditMode) vm.openActionBox(showCommandMenu = true) },
             onLongClick = { vm.openEditDocksFromControl() },
         ),
@@ -340,6 +360,6 @@ private fun ActionsPill(vm: LauncherViewModel, index: Int, c: MadColors, text: C
             )
         }
         Spacer(Modifier.height(4.dp))
-        Text(" ", color = c.muted, fontSize = iconLabelSize(vm.displayAppearance.iconLabelSizeSp))
+        DockLabel(" ", c.muted, vm.displayAppearance.iconLabelSizeSp)
     }
 }

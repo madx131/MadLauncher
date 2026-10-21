@@ -190,7 +190,7 @@ class EdgeDockOverlayService : LifecycleService() {
     private fun applyWindowSize(window: OverlayWindow, updateLayout: Boolean = true) {
         val density = resources.displayMetrics.density
         val expanded = window.expanded
-        val thickness = (window.panel.thicknessDp.coerceIn(48f, 140f) * density).toInt()
+        val thickness = (window.panel.thicknessDp.coerceIn(48f, 160f) * density).toInt()
         window.params.width = if (expanded) thickness else (14 * density).toInt()
         window.params.height = if (expanded) LayoutParams.WRAP_CONTENT else (96 * density).toInt()
         if (updateLayout) {
@@ -270,10 +270,8 @@ private fun OverlaySideDock(
     revision: Int,
 ) {
     val theme = com.madlauncher.ui.theme.LocalMadTheme.current
-    val thickness = panel.thicknessDp.dp.coerceIn(48.dp, 140.dp)
-    val iconSize = panel.iconSizeDp.dp
-        .coerceIn(24.dp, 80.dp)
-        .coerceAtMost((thickness - 16.dp).coerceAtLeast(24.dp))
+    val thickness = panel.thicknessDp.dp.coerceIn(48.dp, 160.dp)
+    val iconSize = com.madlauncher.ui.edgeIconDp(panel.iconSizeDp, panel.thicknessDp).dp
     val shape = if (left) {
         RoundedCornerShape(topEnd = 18.dp, bottomEnd = 18.dp)
     } else {

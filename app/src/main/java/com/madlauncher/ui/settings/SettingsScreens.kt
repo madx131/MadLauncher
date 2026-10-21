@@ -25,6 +25,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.verticalScroll
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.app.Activity
+import android.content.Intent
+import com.madlauncher.data.IconStyleStore
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.CompareArrows
@@ -89,6 +94,7 @@ import com.madlauncher.data.LauncherViewModel
 import com.madlauncher.platform.FeatureStatus
 import com.madlauncher.ui.AppIcon
 import com.madlauncher.ui.BottomDock
+import com.madlauncher.ui.edgeIconDp
 import com.madlauncher.ui.maxDockIconDp
 import com.madlauncher.ui.MadShapePreview
 import com.madlauncher.ui.madString
@@ -404,19 +410,16 @@ private fun ThemesPage(vm: LauncherViewModel) {
     }
 }
 
-private fun IconShapeId.pickerLabel(): String = when (this) {
-    IconShapeId.CRESCENT -> "crescent moon"
-    IconShapeId.BOW_TIE -> "bow tie"
-    IconShapeId.PINE -> "pine tree"
-    IconShapeId.MOUNTAIN -> "mountain"
-    else -> name.lowercase().replace('_', ' ')
-}
+private fun IconShapeId.pickerLabel(): String = name.lowercase().replace('_', ' ')
 
 @Composable
 private fun IconsPage(vm: LauncherViewModel) {
     val s = vm.appearanceDraft
     val c = LocalMadTheme.current.colors
-    LaunchedEffect(Unit) { vm.refreshIconPacks() }
+    LaunchedEffect(Unit) {
+        vm.refreshIconPacks()
+        vm.refreshIconStyles()
+    }
     val previewDp = s.homeIconSizeDp.coerceIn(40f, 72f)
     Column(
         modifier = Modifier.fillMaxSize().padding(14.dp),
@@ -444,35 +447,24 @@ private fun IconsPage(vm: LauncherViewModel) {
                 selected = s.iconShape,
                 onPick = vm::setIconShape,
             )
-            Text(stringResource(R.string.settings_section_playful), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-            ShapeOptionGrid(
-                shapes = listOf(
-                    IconShapeId.STAR,
-                    IconShapeId.TRIANGLE,
-                    IconShapeId.COMET,
-                    IconShapeId.CRESCENT,
-                    IconShapeId.SUN,
-                    IconShapeId.MOUNTAIN,
-                    IconShapeId.PINE,
-                    IconShapeId.DOG,
-                    IconShapeId.CAT,
-                    IconShapeId.TIE,
-                    IconShapeId.BOW_TIE,
-                ),
-                selected = s.iconShape,
-                onPick = vm::setIconShape,
-            )
+            Text(stringResource(R.string.settings_section_icon_style), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            Text(stringResource(R.string.settings_icon_style_hint), color = c.muted, fontSize = 12.sp)
+            IconStyleSection(vm)
             Text(stringResource(R.string.settings_icon_size), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
             Slider(
                 value = s.homeIconSizeDp,
-                onValueChange = { v -> vm.patchAppearanceDraft { it.copy(homeIconSizeDp = v) } },
+                onValueChange = { v -> vm.applyHomeIconSize(v) },
                 valueRange = 40f..88f,
             )
             Text(stringResource(R.string.settings_icon_size_hint), color = c.muted, fontSize = 11.sp)
+            ToggleRow(stringResource(R.string.settings_sync_dock_icons), s.syncDockIcons) {
+                vm.setSyncDockIcons(!s.syncDockIcons)
+            }
+            Text(stringResource(R.string.settings_sync_dock_icons_hint), color = c.muted, fontSize = 11.sp)
             Text(stringResource(R.string.settings_icon_label_size), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
             Slider(
                 value = s.iconLabelSizeSp.coerceIn(9f, 16f),
-                onValueChange = { v -> vm.patchAppearanceDraft { it.copy(iconLabelSizeSp = v) } },
+                onValueChange = { v -> vm.applyIconLabelSize(v) },
                 valueRange = 9f..16f,
             )
             Text(stringResource(R.string.settings_icon_label_hint), color = c.muted, fontSize = 11.sp)
@@ -517,6 +509,66 @@ private fun IconsPage(vm: LauncherViewModel) {
 }
 
 @Composable
+private fun IconStyleSection(vm: LauncherViewModel) {
+    val revision = IconStyleStore.revision.intValue
+    val selected = vm.appearanceDraft.iconStyleId
+    val styles = remember(revision, vm.iconStyles) { vm.iconStyles }
+    val designerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) vm.importIconStyle(result.data)
+    }
+    HubRow(
+        stringResource(R.string.settings_icon_style_none),
+        if (selected.isBlank()) {
+            stringResource(R.string.settings_icon_style_on)
+        } else {
+            stringResource(R.string.settings_icon_style_none_on)
+        },
+    ) { vm.setIconStyle("") }
+    styles.forEach { style ->
+        val on = style.id == selected
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(14.dp))
+                    .clickable { vm.setIconStyle(style.id) }
+                    .padding(horizontal = 12.dp, vertical = 14.dp),
+            ) {
+                Text(style.name, color = LocalMadTheme.current.colors.fg, fontWeight = FontWeight.Medium, fontSize = 15.sp)
+                Text(
+                    if (on) stringResource(R.string.settings_icon_style_on) else style.id,
+                    color = LocalMadTheme.current.colors.muted,
+                    fontSize = 12.sp,
+                )
+            }
+            Text(
+                stringResource(R.string.settings_icon_style_remove),
+                color = LocalMadTheme.current.colors.muted,
+                fontSize = 13.sp,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(10.dp))
+                    .clickable { vm.removeIconStyle(style.id) }
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+            )
+        }
+    }
+    vm.iconStyleDesigners.forEach { designer ->
+        HubRow(stringResource(R.string.settings_icon_style_design), designer.label) {
+            val intent = Intent(IconStyleStore.ACTION_INSTALL).apply {
+                setClassName(designer.packageName, designer.className)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            runCatching { designerLauncher.launch(intent) }
+        }
+    }
+}
+
+@Composable
 private fun IconsLivePreview(vm: LauncherViewModel, size: androidx.compose.ui.unit.Dp) {
     val c = LocalMadTheme.current.colors
     val samples = remember(vm.apps) { vm.apps.filter { it.icon != null }.take(4) }
@@ -531,7 +583,7 @@ private fun IconsLivePreview(vm: LauncherViewModel, size: androidx.compose.ui.un
             .padding(horizontal = 16.dp),
     ) {
         if (samples.isEmpty()) {
-            listOf(IconShapeId.ADAPTIVE, IconShapeId.ROUNDED_SQUARE, IconShapeId.CIRCLE, IconShapeId.STAR).forEach { shape ->
+            listOf(IconShapeId.ADAPTIVE, IconShapeId.ROUNDED_SQUARE, IconShapeId.CIRCLE, IconShapeId.HEXAGON).forEach { shape ->
                 MadShapePreview(shape, size, vm.appearanceDraft.iconBgAlpha)
             }
         } else {
@@ -1397,22 +1449,33 @@ private fun EditDocksPage(vm: LauncherViewModel) {
             }
         }
     }
+    val bottomFollows = s.syncDockIcons && s.dockFollowsIconSize
+    ToggleRow(stringResource(R.string.dock_match_icons), s.dockFollowsIconSize) {
+        vm.setDockFollowsIconSize(!s.dockFollowsIconSize)
+    }
+    Text(
+        if (s.syncDockIcons) stringResource(R.string.dock_match_icons_hint) else stringResource(R.string.dock_match_icons_needs_sync),
+        color = c.muted,
+        fontSize = 11.sp,
+    )
     Text(stringResource(R.string.dock_height), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
     Slider(
-        value = s.dockHeightDp,
+        value = s.dockHeightDp.coerceIn(56f, 148f),
         onValueChange = { v ->
             vm.patchAppearanceDraft {
                 val cap = maxDockIconDp(v, it.iconLabelSizeSp)
                 it.copy(dockHeightDp = v, dockIconSizeDp = it.dockIconSizeDp.coerceIn(32f, cap))
             }
         },
-        valueRange = 52f..110f,
+        enabled = !bottomFollows,
+        valueRange = 56f..148f,
     )
     Text(stringResource(R.string.dock_icon_size), color = c.fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
     Slider(
-        value = iconValue,
+        value = iconValue.coerceIn(32f, iconCap.coerceAtLeast(32f)),
         onValueChange = { v -> vm.patchAppearanceDraft { it.copy(dockIconSizeDp = v) } },
-        valueRange = 32f..iconCap,
+        enabled = !bottomFollows,
+        valueRange = 32f..iconCap.coerceAtLeast(32.5f),
     )
     ToggleRow(stringResource(R.string.dock_second_row), s.dockSecondRow) {
         vm.patchAppearanceDraft { it.copy(dockSecondRow = !it.dockSecondRow) }
@@ -1460,21 +1523,34 @@ private fun EditDocksPage(vm: LauncherViewModel) {
         ToggleRow(stringResource(R.string.dock_enabled), enabled) { vm.toggleEdgePanel(side) }
         if (enabled) {
             val panel = vm.edgePanel(side) ?: return@forEach
+            val edgeFollows = s.syncDockIcons && panel.followIconSize
+            val thickness = panel.thicknessDp.coerceIn(48f, 160f)
+            val edgeCap = edgeIconDp(88f, thickness).coerceAtLeast(24f)
+            ToggleRow(stringResource(R.string.dock_match_icons), panel.followIconSize) {
+                vm.setEdgeFollowsIconSize(side, !panel.followIconSize)
+            }
+            Text(
+                if (s.syncDockIcons) stringResource(R.string.dock_match_icons_hint) else stringResource(R.string.dock_match_icons_needs_sync),
+                color = c.muted,
+                fontSize = 11.sp,
+            )
             Text(
                 if (side == EdgeSide.TOP) stringResource(R.string.dock_height) else stringResource(R.string.dock_width),
                 color = c.fg,
                 fontSize = 13.sp,
             )
             Slider(
-                value = panel.thicknessDp,
+                value = thickness,
                 onValueChange = { v -> vm.patchEdgePanel(side) { it.copy(thicknessDp = v) } },
-                valueRange = 48f..140f,
+                enabled = !edgeFollows,
+                valueRange = 48f..160f,
             )
             Text(stringResource(R.string.dock_icon_size), color = c.fg, fontSize = 13.sp)
             Slider(
-                value = panel.iconSizeDp,
+                value = panel.iconSizeDp.coerceIn(24f, edgeCap),
                 onValueChange = { v -> vm.patchEdgePanel(side) { it.copy(iconSizeDp = v) } },
-                valueRange = 24f..80f,
+                enabled = !edgeFollows,
+                valueRange = 24f..edgeCap.coerceAtLeast(24.5f),
             )
             Text(stringResource(R.string.dock_visibility), color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
             SegmentedRow(

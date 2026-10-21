@@ -102,6 +102,8 @@ import com.madlauncher.ui.settings.CommandEditId
 import com.madlauncher.ui.settings.SettingsBackStack
 import com.madlauncher.ui.settings.SettingsRoute
 import com.madlauncher.ui.WindowGeom
+import com.madlauncher.ui.dockHeightForSyncedIcon
+import com.madlauncher.ui.edgeThicknessForSyncedIcon
 import com.madlauncher.ui.openAppMenuOnHoldRelease
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -246,6 +248,22 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     var appearanceEpoch by mutableStateOf(0)
     var iconPacks by mutableStateOf<List<com.madlauncher.data.IconPackResolver.PackInfo>>(emptyList())
         private set
+    var iconStyles by mutableStateOf<List<IconStyleStore.Summary>>(emptyList())
+        private set
+    var iconStyleDesigners by mutableStateOf<List<IconStyleStore.Designer>>(emptyList())
+        private set
+
+    private val iconStyleListener: (String) -> Unit = { id ->
+        refreshIconStyles()
+        if (appearanceSettings.iconStyleId != id) {
+            val next = appearanceSettings.copy(iconStyleId = id)
+            appearanceSettings = next
+            appearanceDraft = appearanceDraft.copy(iconStyleId = id)
+            store.appearanceSettings = next
+            AppearanceBridge.update(next)
+            appearanceEpoch++
+        }
+    }
     var wallpaperPalette by mutableStateOf<WallpaperColorExtractor.WallpaperPalette?>(null)
         private set
 
@@ -979,6 +997,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private val persistentTracker = PersistentAppsTracker(application)
 
     init {
+        IconStyleStore.addListener(iconStyleListener)
         if (com.madlauncher.BuildConfig.ACTION_BOX_APP) {
             independentActionBox = true
             setupOpen = false
@@ -1022,6 +1041,13 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 while (isActive) {
                     delay(15 * 60_000)
                     refreshNews()
+                }
+            }
+            viewModelScope.launch {
+                delay(30 * 60_000)
+                while (isActive) {
+                    refreshWeather()
+                    delay(30 * 60_000)
                 }
             }
             viewModelScope.launch {
@@ -1186,9 +1212,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         ) {
             setupOpen = false
         }
-        if (!com.madlauncher.BuildConfig.ACTION_BOX_APP && grants.location) {
+        if (!com.madlauncher.BuildConfig.ACTION_BOX_APP) {
             refreshWeather()
-            refreshNewsProviders()
+            if (grants.location) refreshNewsProviders()
         }
         reloadLaunchableApps()
         refreshPlatformProfile()
@@ -1365,7 +1391,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun skipCompatibilityReport() {
         store.compatibilityReportSubmitted = true
         compatibilityReportSubmitted = true
-        showToast("You can send a report anytime from Not working or Setup")
+        showToast("You can send a report anytime from Current software limitations or Setup")
     }
 
     fun reloadLaunchableApps() {
@@ -1415,6 +1441,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     override fun onCleared() {
+        IconStyleStore.removeListener(iconStyleListener)
         RecentsIngest.removeListener(recentsIngestListener)
         super.onCleared()
     }
@@ -1804,7 +1831,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             CommandAliases.allPhrases(target).any { it.equals(word, ignoreCase = true) }
         }
         if (builtin) return overlayString(R.string.action_box_shortcut_builtin, word)
-        if (CommandAliases.calc.any { it.equals(word, ignoreCase = true) }) {
+        if (CommandAliases.calcPhrases().any { it.equals(word, ignoreCase = true) }) {
             return overlayString(R.string.action_box_shortcut_builtin, word)
         }
         if (CommonAppShortcuts.allPhrases().any { it.equals(word, ignoreCase = true) }) {
@@ -3011,7 +3038,18 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun addEdgePanel(side: EdgeSide) {
         if (hasEdgePanel(side)) return
-        edgePanels = edgePanels + EdgePanel(side)
+        val icon = appearanceSettings.homeIconSizeDp.coerceIn(32f, 88f)
+        val panel = if (appearanceSettings.syncDockIcons) {
+            EdgePanel(
+                side,
+                iconSizeDp = icon,
+                thicknessDp = edgeThicknessForSyncedIcon(icon),
+                followIconSize = true,
+            )
+        } else {
+            EdgePanel(side)
+        }
+        edgePanels = edgePanels + panel
         store.edgePanels = edgePanels
         expandedEdge = side
         exitHomeEdit()
@@ -3038,6 +3076,67 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             else -> Unit
         }
         com.madlauncher.overlay.EdgeDockOverlay.sync(getApplication())
+    }
+
+    fun setSyncDockIcons(on: Boolean) {
+        val base = appearanceDraft.copy(syncDockIcons = on)
+        val next = if (on) base.sizedForIconSync() else base
+        applyAppearance(next, persist = true)
+        if (on) syncFollowingEdgeDocks(next.homeIconSizeDp)
+    }
+
+    fun setDockFollowsIconSize(on: Boolean) {
+        val base = appearanceDraft.copy(dockFollowsIconSize = on)
+        val next = if (on && base.syncDockIcons) base.sizedForIconSync() else base
+        applyAppearance(next, persist = true)
+    }
+
+    fun setEdgeFollowsIconSize(side: EdgeSide, on: Boolean) {
+        val icon = appearanceSettings.homeIconSizeDp.coerceIn(32f, 88f)
+        patchEdgePanel(side) { panel ->
+            if (appearanceSettings.syncDockIcons && on) {
+                panel.copy(
+                    followIconSize = true,
+                    iconSizeDp = icon,
+                    thicknessDp = edgeThicknessForSyncedIcon(icon),
+                )
+            } else {
+                panel.copy(followIconSize = on)
+            }
+        }
+    }
+
+    fun applyHomeIconSize(iconDp: Float) {
+        val next = appearanceDraft.copy(homeIconSizeDp = iconDp.coerceIn(40f, 88f)).sizedForIconSync()
+        applyAppearance(next, persist = true)
+        if (next.syncDockIcons) syncFollowingEdgeDocks(next.homeIconSizeDp)
+    }
+
+    fun applyIconLabelSize(labelSp: Float) {
+        val label = labelSp.coerceIn(9f, 16f)
+        var next = appearanceDraft.copy(iconLabelSizeSp = label)
+        if (next.syncDockIcons && next.dockFollowsIconSize) {
+            next = next.copy(dockHeightDp = dockHeightForSyncedIcon(next.dockIconSizeDp, label))
+        }
+        applyAppearance(next, persist = true)
+    }
+
+    private fun AppearanceSettings.sizedForIconSync(): AppearanceSettings {
+        if (!syncDockIcons || !dockFollowsIconSize) return this
+        val dockIcon = homeIconSizeDp.coerceIn(32f, 88f)
+        return copy(
+            dockIconSizeDp = dockIcon,
+            dockHeightDp = dockHeightForSyncedIcon(dockIcon, iconLabelSizeSp),
+        )
+    }
+
+    private fun syncFollowingEdgeDocks(iconDp: Float) {
+        val icon = iconDp.coerceIn(32f, 88f)
+        val thickness = edgeThicknessForSyncedIcon(icon)
+        edgePanels.filter { it.followIconSize }.forEach { panel ->
+            if (panel.iconSizeDp == icon && panel.thicknessDp == thickness) return@forEach
+            patchEdgePanel(panel.side) { it.copy(iconSizeDp = icon, thicknessDp = thickness) }
+        }
     }
 
     fun edgePanel(side: EdgeSide): EdgePanel? = edgePanels.firstOrNull { it.side == side }
@@ -3283,6 +3382,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         } else if (LanguageOverlay.selectedFile != applied.languageOverlay) {
             LanguageOverlay.load(app, applied.languageOverlay)
         }
+        IconStyleStore.activate(app, applied.iconStyleId)
     }
 
     var remoteLanguageCatalog by mutableStateOf<List<LanguagePackEntry>>(emptyList())
@@ -3552,6 +3652,47 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun refreshIconPacks() {
         iconPacks = IconPackResolver.listInstalled(app)
+        refreshIconStyles()
+    }
+
+    fun refreshIconStyles() {
+        iconStyles = IconStyleStore.list(app)
+        iconStyleDesigners = IconStyleStore.designers(app)
+    }
+
+    fun setIconStyle(id: String) {
+        val nextSettings = appearanceSettings.copy(iconStyleId = id)
+        val nextDraft = if (settingsOpen) appearanceDraft.copy(iconStyleId = id) else nextSettings
+        appearanceSettings = nextSettings
+        appearanceDraft = nextDraft
+        store.appearanceSettings = nextSettings
+        AppearanceBridge.update(nextSettings)
+        IconStyleStore.activate(app, id, force = true)
+        appearanceEpoch++
+        refreshIconStyles()
+    }
+
+    fun removeIconStyle(id: String) {
+        IconStyleStore.delete(app, id)
+        refreshIconStyles()
+    }
+
+    fun importIconStyle(intent: android.content.Intent?) {
+        val uri = IconStyleStore.uriFrom(intent) ?: run {
+            showToast(overlayString(R.string.settings_icon_style_failed))
+            return
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            val spec = IconStyleStore.import(app, uri)
+            withContext(Dispatchers.Main) {
+                if (spec == null) {
+                    showToast(overlayString(R.string.settings_icon_style_failed))
+                } else {
+                    setIconStyle(spec.id)
+                    showToast(overlayString(R.string.settings_icon_style_installed))
+                }
+            }
+        }
     }
 
     fun setPageEffect(effect: PageEffectId) {
@@ -5639,6 +5780,14 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     private fun launchCommonApp(shortcut: CommonAppShortcut) {
+        if (shortcut.id == "weather") {
+            runCatching { intents.openWeather() }
+                .onFailure { showToast("Couldn't open weather") }
+            LauncherCommands.suppressHomeBriefly()
+            MadApp.instance.deferLauncherToBack()
+            closeActionBox()
+            return
+        }
         val pkg = shortcut.packages.firstOrNull()
         if (pkg != null && browserMode(pkg) == SocialBrowserApps.BrowserMode.ON) {
             val url = SocialBrowserApps.webUrl(pkg)
@@ -5842,7 +5991,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             CallResult.Started -> showToast("Calling ${contact.name} via ${app.name}")
             CallResult.Automating -> showToast("Starting call in ${app.name}…")
             CallResult.OpenedThread -> showToast("Opened ${app.name} — tap call there")
-            CallResult.Failed -> showToast("Calls via ${app.name} aren't supported — see Settings → Not working")
+            CallResult.Failed -> showToast("Calls via ${app.name} aren't supported — see Settings → Current software limitations")
         }
         if (result != CallResult.Failed) closeActionBox()
     }
@@ -5896,10 +6045,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 else "Copied — paste in ${app.name} (Meta blocks filling from MAD)",
             )
             PostResult.NotWorking ->
-                showToast("${app.name} posts aren't working yet — see Settings → Not working")
+                showToast("${app.name} posts aren't available in the app yet — see Settings → Current software limitations")
             PostResult.Failed -> showToast(
                 if (composerOnly) "Couldn't open ${app.name}"
-                else "Couldn't post to ${app.name} — see Settings → Not working",
+                else "Couldn't post to ${app.name} — see Settings → Current software limitations",
             )
         }
         if (result != PostResult.Failed && result != PostResult.NotWorking) closeActionBox()
@@ -5933,7 +6082,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 closeActionBox()
             }
             InboxOpenResult.NotWorking ->
-                showToast("Messages in ${app.name} aren't working yet — see Settings → Not working")
+                showToast("Messages in ${app.name} aren't available in the app yet — see Settings → Current software limitations")
             InboxOpenResult.Failed ->
                 showToast("Couldn't open messages in the browser")
         }
@@ -6115,7 +6264,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             SocialInbox.hasInbox(app.packageName) &&
             !allowsBrowser(app.packageName, SocialBrowserApps.BrowserCommand.MSG)
         ) {
-            showToast("Messages in ${app.name} aren't working yet — see Settings → Not working")
+            showToast("Messages in ${app.name} aren't available in the app yet — see Settings → Current software limitations")
         } else {
             showToast("Couldn't open ${contact.name} in ${app.name}")
         }

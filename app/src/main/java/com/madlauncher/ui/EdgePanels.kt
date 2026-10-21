@@ -62,10 +62,8 @@ private fun BoxScope.SideEdge(
     val theme = LocalMadTheme.current
     val showPanel = vm.edgeShouldShowExpanded(panel)
     // Width follows the size slider; icons shrink to fit inside the strip.
-    val thickness = panel.thicknessDp.dp.coerceIn(48.dp, 140.dp)
-    val iconSize = panel.iconSizeDp.dp
-        .coerceIn(24.dp, 80.dp)
-        .coerceAtMost((thickness - 16.dp).coerceAtLeast(24.dp))
+    val thickness = panel.thicknessDp.dp.coerceIn(48.dp, 160.dp)
+    val iconSize = edgeIconDp(panel.iconSizeDp, panel.thicknessDp).dp
     val shape = if (left) {
         RoundedCornerShape(topEnd = 18.dp, bottomEnd = 18.dp)
     } else {
@@ -132,10 +130,8 @@ private fun BoxScope.SideEdge(
 private fun BoxScope.TopEdge(vm: LauncherViewModel, panel: EdgePanel) {
     val theme = LocalMadTheme.current
     val showPanel = vm.edgeShouldShowExpanded(panel)
-    val thickness = panel.thicknessDp.dp.coerceIn(48.dp, 140.dp)
-    val iconSize = panel.iconSizeDp.dp
-        .coerceIn(24.dp, 80.dp)
-        .coerceAtMost((thickness - 16.dp).coerceAtLeast(24.dp))
+    val thickness = panel.thicknessDp.dp.coerceIn(48.dp, 160.dp)
+    val iconSize = edgeIconDp(panel.iconSizeDp, panel.thicknessDp).dp
     if (!showPanel) {
         Box(
             modifier = Modifier

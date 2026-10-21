@@ -43,16 +43,63 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import com.madlauncher.data.IconBadgeStyle
+import com.madlauncher.data.IconStyleStore
 import com.madlauncher.R
 import com.madlauncher.data.IconShapeId
 import com.madlauncher.ui.theme.IconLogoSlot
 import com.madlauncher.ui.theme.IconShapes
 import com.madlauncher.ui.theme.LocalMadTheme
 import com.madlauncher.ui.theme.MadTheme
+import android.graphics.BitmapFactory
+import android.graphics.drawable.BitmapDrawable
 import android.graphics.Path as AndroidPath
 import kotlin.math.max
 import kotlin.math.min
 import android.graphics.Color as AndroidColor
+
+internal data class IconMaskMode(
+    val shape: Shape,
+    val fillOnly: Boolean,
+    val logoSlot: IconLogoSlot,
+    val adaptiveInset: Boolean,
+    val key: String,
+)
+
+/**
+ * Built-in shape, or the installed style. A style mask replaces the shape.
+ * Style art with no mask is drawn adaptive so MAD does not tile it.
+ */
+@Composable
+internal fun rememberIconMask(styleArt: Boolean): IconMaskMode {
+    val theme = LocalMadTheme.current
+    val revision = IconStyleStore.revision.intValue
+    val installed = IconStyleStore.active
+    val shapeId = theme.iconShape
+    val corner = theme.iconCornerDp
+    return remember(shapeId, corner, revision, styleArt, installed?.id, installed?.mask) {
+        val mask = installed?.mask
+        val art = styleArt && mask == null
+        val shape = when {
+            mask != null -> IconShapes.normalized(mask.points)
+            art || IconShapes.usesAdaptiveInset(shapeId) -> RoundedCornerShape(0.dp)
+            else -> MadTheme.iconClip(shapeId, corner)
+        }
+        val fillOnly = mask != null || (!art && IconShapes.shapesFillOnly(shapeId))
+        val logo = when {
+            mask != null -> IconLogoSlot(mask.logo.cx, mask.logo.cy, mask.logo.scale)
+            art -> IconLogoSlot()
+            else -> IconShapes.logoSlot(shapeId)
+        }
+        val adaptive = mask == null && (art || IconShapes.usesAdaptiveInset(shapeId))
+        IconMaskMode(
+            shape = shape,
+            fillOnly = fillOnly,
+            logoSlot = logo,
+            adaptiveInset = adaptive,
+            key = "$shapeId|$corner|${installed?.id.orEmpty()}|$styleArt|$revision",
+        )
+    }
+}
 
 @Composable
 fun AppIcon(
@@ -64,38 +111,45 @@ fun AppIcon(
     activityName: String? = null,
 ) {
     val theme = LocalMadTheme.current
-    val shapeId = theme.iconShape
-    val shape = MadTheme.iconClip(shapeId, theme.iconCornerDp)
     val density = LocalDensity.current
     val context = LocalContext.current
     val px = remember(size, density) {
         with(density) { size.roundToPx() }.coerceIn(48, 256)
     }
     val bgAlpha = theme.iconBgAlpha.coerceIn(0f, 1f)
-    val fillOnly = IconShapes.shapesFillOnly(shapeId)
-    val logoSlot = IconShapes.logoSlot(shapeId)
-    val adaptiveInset = IconShapes.usesAdaptiveInset(shapeId)
-    // Rasterize without the OEM adaptive mask, then clip to the MAD shape.
-    // Adaptive keeps the delivered silhouette and is not clipped to a tile.
-    val bmp = remember(drawable, px, shapeId, theme.iconCornerDp, bgAlpha, packageName, activityName) {
+    val stylePath = packageName?.let { IconStyleStore.iconPath(it, activityName) }
+    val mask = rememberIconMask(styleArt = stylePath != null)
+    val bmp = remember(drawable, px, mask.key, bgAlpha, packageName, activityName, stylePath) {
+        val decoded = stylePath?.let { BitmapFactory.decodeFile(it) }
+        val source = if (decoded != null) BitmapDrawable(context.resources, decoded) else drawable
         rasterizeForMadShape(
-            context, drawable, px, bgAlpha, shape, density, fillOnly, logoSlot, adaptiveInset, packageName, activityName,
+            context,
+            source,
+            px,
+            bgAlpha,
+            mask.shape,
+            density,
+            mask.fillOnly,
+            mask.logoSlot,
+            mask.adaptiveInset,
+            packageName,
+            activityName,
         )
     }
     if (bmp != null) {
         Image(
             bitmap = bmp.asImageBitmap(),
             contentDescription = contentDescription,
-            contentScale = if (adaptiveInset) ContentScale.Fit else ContentScale.Crop,
+            contentScale = if (mask.adaptiveInset) ContentScale.Fit else ContentScale.Crop,
             modifier = Modifier
                 .size(size)
-                .then(if (adaptiveInset) Modifier else Modifier.clip(shape)),
+                .then(if (mask.adaptiveInset) Modifier else Modifier.clip(mask.shape)),
         )
     } else {
         Box(
             modifier = Modifier
                 .size(size)
-                .then(if (adaptiveInset) Modifier else Modifier.clip(shape))
+                .then(if (mask.adaptiveInset) Modifier else Modifier.clip(mask.shape))
                 .background(theme.colors.primary),
         )
     }
@@ -103,7 +157,7 @@ fun AppIcon(
 
 /**
  * Draw adaptive foreground+background as a full square (no system squircle mask).
- * Playful shapes clip the fill and place the logo on [IconLogoSlot].
+ * Fill-only masks clip the fill and place the logo on [IconLogoSlot].
  * Classic shapes stay full-bleed and are clipped in Compose.
  * [bgAlpha] fades only the background layer.
  */

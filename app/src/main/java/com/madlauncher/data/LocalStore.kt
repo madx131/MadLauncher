@@ -260,6 +260,7 @@ class LocalStore(context: Context) {
                             autoHide = runCatching {
                                 DockAutoHide.valueOf(obj.optString("autoHide", DockAutoHide.REGULAR.name))
                             }.getOrDefault(DockAutoHide.REGULAR).forUi(),
+                            followIconSize = obj.optBoolean("followIconSize", true),
                             showOverApps = obj.optBoolean("showOverApps", false) &&
                                 (side == EdgeSide.LEFT || side == EdgeSide.RIGHT),
                         ),
@@ -277,6 +278,7 @@ class LocalStore(context: Context) {
                         .put("thicknessDp", panel.thicknessDp.toDouble())
                         .put("iconSizeDp", panel.iconSizeDp.toDouble())
                         .put("autoHide", panel.autoHide.forUi().name)
+                        .put("followIconSize", panel.followIconSize)
                         .put("showOverApps", panel.showOverApps && panel.side != EdgeSide.TOP),
                 )
             }
