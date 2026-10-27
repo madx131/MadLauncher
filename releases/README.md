@@ -2,11 +2,10 @@
 
 - `MAD-launcher-latest.apk` — always the newest public build (no distributor token / no Share MAD UI)
 
-Download (repo collaborators, GitHub login required):
+The repository is public. Download (no login):
 https://github.com/madx131/MadLauncher/raw/main/releases/MAD-launcher-latest.apk
 
-To share with people who are not collaborators, use Settings → Extras → Share MAD → Send APK
-(the distributor build downloads this public APK with the token and shares the file).
+Settings → Extras → Share MAD → Send APK shares this file over another app.
 
 Built with `-PMAD_PUBLIC_APK=true` so `SHOW_APK_SHARE=false`.
 Local archive: `versions\MAD-0.9.126.6-latest.apk`.

@@ -1,5 +1,9 @@
 # MAD Launcher — native Android (Kotlin + Jetpack Compose)
 
+Open source under the [Apache License 2.0](LICENSE).
+
+Source: https://github.com/madx131/MadLauncher
+
 Clean rebuild of the MAD Launcher UI **without Expo / React Native**.
 
 ## Features
