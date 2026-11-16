@@ -1,0 +1,7 @@
+MAD Launcher message
+Version: 0.9.187.4
+Name: Mike
+
+Truth social is opening on the discover page where the search is but without the text in the search bar.
+Extras needs updating. It still contains experimental mantion and has open in web functions.
+There is no confermantion that send here did anything and the text is still on
